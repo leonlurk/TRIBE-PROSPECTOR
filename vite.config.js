@@ -1,7 +1,17 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: "/KoaFyLLC/", // Asegúrate de cambiar "TU-REPO" por el nombre real de tu repositorio
+  root: '.', // Asegura que use el index.html en la raíz
+  base: '/', // Usa rutas relativas para evitar problemas de carga
+  server: {
+    port: 3000, // Asegura que corre en el puerto correcto
+    open: true // Abre el navegador automáticamente
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true
+  }
 });

@@ -12,5 +12,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Route path="/register" element={<Register />} />
       <Route path="/dashboard" element={<Dashboard />} />
     </Routes>
-  </BrowserRouter>
+    </BrowserRouter>
 );

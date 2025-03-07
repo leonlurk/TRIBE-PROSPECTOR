@@ -2,7 +2,7 @@ import { useState } from "react";
 import PropTypes from 'prop-types';
 
 
-const API_BASE_URL = "http://145.223.73.39:8006";
+const API_BASE_URL = "https://alets.com.ar";
 
 const NuevaSolicitudPanel = ({ instagramToken }) => {
     const [postLink, setPostLink] = useState("");
@@ -13,33 +13,50 @@ const NuevaSolicitudPanel = ({ instagramToken }) => {
     const getLikes = async () => {
         setLoading(true);
         setUsersList([]);
-
-        const token = instagramToken;
-
+    
         try {
             const formData = new FormData();
             formData.append("link", postLink);
-
+    
+            console.log("Enviando request a obtener_likes con token:", instagramToken);
+    
             const response = await fetch(`${API_BASE_URL}/obtener_likes`, {
                 method: "POST",
-                headers: { token },
+                headers: 
+                    {
+                     token: instagramToken, 
+                    },
                 body: formData,
             });
-
-            const data = await response.json();
-
+    
+            console.log("Status HTTP:", response.status);
+    
+            let data = {};
+            try {
+                data = await response.json();
+            } catch (jsonError) {
+                console.error("No se pudo parsear la respuesta como JSON:", jsonError);
+                alert("Error inesperado: la respuesta del servidor no es válida.");
+                setLoading(false);
+                return;
+            }
+    
+            console.log("Respuesta completa:", data);
+    
             if (data.status === "success") {
                 setUsersList(data.likes);
             } else {
-                alert("Error al obtener likes: " + data.message);
+                alert("Error al obtener likes: " + (data.message || "Error desconocido"));
             }
         } catch (error) {
-            alert("Error de conexión");
-            console.error("Ocurrió un error:", error);
+            console.error("Ocurrió un error al conectar con la API:", error);
+            alert("Error de conexión o problema de red.");
         } finally {
             setLoading(false);
         }
     };
+    
+    
 
     NuevaSolicitudPanel.propTypes = {
         instagramToken: PropTypes.string.isRequired,
@@ -47,6 +64,7 @@ const NuevaSolicitudPanel = ({ instagramToken }) => {
 
     const followUsers = async () => {
         const token = instagramToken;
+        console.log("Token antes de pedir likes:", instagramToken);
 
         try {
             const response = await fetch(`${API_BASE_URL}/seguir_usuarios`, {

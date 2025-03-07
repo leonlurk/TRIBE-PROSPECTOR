@@ -7,10 +7,11 @@ import { FaSearch, FaPlus, FaSlidersH } from "react-icons/fa";
 import ChartComponent from "./components/ChartComponent";
 import ConnectInstagram from "./components/ConnectInstagram";
 import NuevaSolicitudPanel from "./components/NuevaSolicitudPanel";
+import ModalEditarPlantilla from './components/ModalEditarPlantilla';
 
 
 
-const API_BASE_URL = "http://145.223.73.39:8006";
+const API_BASE_URL = "https://alets.com.ar";
 
 
 const Dashboard = () => {
@@ -22,6 +23,48 @@ const Dashboard = () => {
   const [showModal, setShowModal] = useState(true);  // Aquí está bien
   const [errorMessage, setErrorMessage] = useState("");
   const [instagramToken, setInstagramToken] = useState("");
+  const [isPlatformMenuOpen, setIsPlatformMenuOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState("Plataformas");
+  const [isTypeMenuOpen, setIsTypeMenuOpen] = useState(false);
+  const [selectedType, setSelectedType] = useState("Tipo");
+  const [isCreateTemplateModalOpen, setIsCreateTemplateModalOpen] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const types = [
+    "Plantillas de mensajes",
+    "Plantillas de comentarios"
+    ];
+
+    const openCreateTemplateModal = () => {
+        setIsCreateTemplateModalOpen(true);
+    };    
+
+    const toggleTypeMenu = () => setIsTypeMenuOpen(!isTypeMenuOpen);
+
+    const selectType = (type) => {
+        setSelectedType(type);
+        setIsTypeMenuOpen(false);
+    };
+
+
+
+const platforms = [
+    "Todos",
+    "Linkedin",
+    "X",
+    "Facebook",
+    "Instagram",
+    "Tik Tok",
+    "Whatsapp",
+    "Email"
+];
+
+const togglePlatformMenu = () => setIsPlatformMenuOpen(!isPlatformMenuOpen);
+
+const selectPlatform = (platform) => {
+    setSelectedPlatform(platform);
+    setIsPlatformMenuOpen(false);
+};
+
 
     
 
@@ -33,7 +76,7 @@ const Dashboard = () => {
             setUser(currentUser);
             setIsLoading(false);
 
-            // 📌 Buscar el token de Instagram en Firebase
+            
             const userRef = doc(db, "users", currentUser.uid);
             const userSnap = await getDoc(userRef);
 
@@ -43,7 +86,7 @@ const Dashboard = () => {
                 setIsInstagramConnected(sessionValid);
 
                 if (sessionValid) {
-                    localStorage.setItem("instagram_bot_token", token);
+                    localStorage.setItem("instagram_bot_token", instagramToken);
                     setSelectedOption("Plantilla de mensajes"); // Redirigir a la pestaña correcta
                 } else {
                     setSelectedOption("Conectar Instagram");
@@ -56,6 +99,12 @@ const Dashboard = () => {
 
         return () => unsubscribe();
     }, [navigate, isInstagramConnected]);
+
+    const handleTemplateOptions = (template) => {
+        setSelectedTemplate(template);
+    };
+    
+    
 
     const checkInstagramSession = async (token) => {
         try {
@@ -89,7 +138,7 @@ const Dashboard = () => {
   
           if (data.status === "success" && data.token) {
             localStorage.setItem("instagram_bot_token", data.token);
-            setInstagramToken(data.token);  // <-- Esta línea es la clave
+            setInstagramToken(data.token);  
             setIsInstagramConnected(true);
             setShowModal(false);
             setSelectedOption("Plantilla de mensajes");
@@ -98,7 +147,7 @@ const Dashboard = () => {
                 const userRef = doc(db, "users", user.uid);
                 await setDoc(userRef, {
                   instagramToken: data.token,
-                  instagramUsername: data.username,  // si la API lo devuelve
+                  instagramUsername: data.username, 
                   instagramEmail: email,
                   linkedAt: new Date().toISOString()
               }, { merge: true });
@@ -131,6 +180,15 @@ const Dashboard = () => {
           return <NuevaSolicitudPanel instagramToken={instagramToken} />;
       }
 
+      if (selectedOption === "Seguimiento") {
+        return (
+            <div className="flex justify-center items-center h-full">
+                <h1 className="text-3xl font-bold text-gray-500">Próximamente</h1>
+            </div>
+        );
+    }
+    
+
         if (selectedOption === "Conectar Instagram") {
           return (
               <ConnectInstagram
@@ -157,47 +215,114 @@ const Dashboard = () => {
                         />
                     </div>
                     <div className="flex gap-4">
-                        <button className="px-6 py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium">
-                            Plataformas ▼
-                        </button>
-                        <button className="px-6 py-3 bg-[#5468FF] text-white rounded-full shadow-sm font-semibold flex items-center gap-2 hover:bg-[#4356cc] transition">
+                    <div className="relative">
+                            <button
+                                className="px-6 py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium"
+                                onClick={togglePlatformMenu}
+                            >
+                                {selectedPlatform} ▼
+                            </button>
+
+                            {isPlatformMenuOpen && (
+                                <div className="absolute z-50 mt-2 bg-white border border-gray-300 rounded-xl shadow-lg w-44 overflow-hidden">
+                                    <ul className="text-gray-700">
+                                        {platforms.map((platform) => (
+                                            <li
+                                                key={platform}
+                                                className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                                onClick={() => selectPlatform(platform)}
+                                            >
+                                                {platform}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+
+                        <button
+                            className="px-6 py-3 bg-[#5468FF] text-white rounded-full shadow-sm font-semibold flex items-center gap-2 hover:bg-[#4356cc] transition"
+                            onClick={openCreateTemplateModal}>
                             <FaPlus /> Crear Plantilla
                         </button>
-                        <button className="px-6 py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium">
-                            Tipo ▼
-                        </button>
+                        <div className="relative">
+    <button
+        className="px-6 py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium"
+        onClick={toggleTypeMenu}
+    >
+        {selectedType} ▼
+    </button>
+
+    {isTypeMenuOpen && (
+        <div className="absolute z-50 mt-2 bg-white border border-gray-300 rounded-xl shadow-lg w-60 overflow-hidden right-0">
+            <ul className="text-gray-700">
+                {types.map((type) => (
+                    <li
+                        key={type}
+                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => selectType(type)}
+                    >
+                        {type}
+                    </li>
+                ))}
+            </ul>
+        </div>
+    )}
+</div>
                     </div>
                 </div>
                 <div className="space-y-4">
-                    {[
-                        { name: "Bienvenida", platform: "Instagram" },
-                        { name: "CTA", platform: "Whatsapp" },
-                        { name: "Videollamada", platform: "Instagram" },
-                        { name: "Nota de voz", platform: "Instagram" },
-                    ].map((template, index) => (
-                        <div
-                            key={index}
-                            className="p-4 bg-white rounded-2xl flex justify-between items-center shadow-sm border border-gray-200 hover:shadow-md transition"
-                        >
-                            <div className="flex items-center gap-4">
-                                <span className="p-3 bg-[#C6CEFF] rounded-full text-gray-700">💬</span>
-                                <div>
-                                    <p className="font-semibold text-gray-800">{template.name}</p>
-                                    <p className="text-sm text-gray-500">{template.platform}</p>
-                                </div>
-                            </div>
-                            <span className="cursor-pointer text-gray-500 hover:text-gray-700 transition">⋮</span>
-                        </div>
-                    ))}
+    {[
+        { name: "Bienvenida", platform: "Instagram", icon: "/assets/message.png" },
+        { name: "CTA", platform: "Whatsapp", icon: "/assets/messages-2.png" },
+        { name: "Videollamada", platform: "Instagram", icon: "/assets/message.png" },
+        { name: "Nota de voz", platform: "Instagram", icon: "/assets/messages-2.png" },
+    ].map((template, index) => (
+        <div
+            key={index}
+            className="p-4 bg-white rounded-2xl flex justify-between items-center shadow-sm border border-gray-200 hover:shadow-md transition"
+        >
+            <div className="flex items-center gap-4">
+                {/* Contenedor con Rectangle.png como fondo */}
+                <div
+                    className="w-12 h-12 flex items-center justify-center"
+                    style={{ backgroundImage: 'url(/assets/Rectangle.png)', backgroundSize: 'cover' }}
+                >
+                    <img
+                        src={template.icon}
+                        alt="Message Icon"
+                        className="w-8 h-8 object-contain"
+                    />
                 </div>
+                <div>
+                    <p className="font-semibold text-gray-800">{template.name}</p>
+                    <p className="text-sm text-gray-500">{template.platform}</p>
+                </div>
+            </div>
+            <button
+                className="cursor-pointer flex items-center justify-center"
+                style={{
+                    backgroundColor: "transparent",  // Sin fondo
+                    border: "none",                   // Sin borde
+                    padding: 0,                        // Sin padding interno
+                    margin: 0,                         // Sin margen adicional
+                    lineHeight: 1                      // Ajuste fino para centrar bien el icono
+                }}
+                onClick={() => handleTemplateOptions(template)}
+            >
+                <img 
+                    src="/assets/setting-5.png" 
+                    alt="Opciones" 
+                    className="w-11 h-11"
+                />
+            </button>
+        </div>
+    ))}
+</div>
+
+
     
-                {/* Mostrar el token de Instagram si está disponible */}
-                {instagramToken && (
-                    <div className="mt-6 p-4 bg-white border border-gray-300 rounded-lg shadow-sm">
-                        <h3 className="text-sm font-semibold text-gray-600">Token de Instagram</h3>
-                        <p className="text-xs font-mono break-all text-gray-800">{instagramToken}</p>
-                    </div>
-                )}
+
             </div>
         );
     }
@@ -235,6 +360,9 @@ const Dashboard = () => {
                   <p className="text-2xl font-bold">0%</p>
                 </div>
               </div>
+              <div className="flex justify-center items-center py-6">
+                <h2 className="text-xl font-semibold text-gray-500">Próximamente</h2>
+            </div>
             </div>
           );
         }
@@ -242,12 +370,67 @@ const Dashboard = () => {
         return <div className="text-center p-10">Seleccione una opción del menú</div>;
       };
     
+    
       return (
         <div className="h-screen flex bg-gray-100">
-          <Sidebar selectedOption={selectedOption} setSelectedOption={setSelectedOption} />
-          <div className="flex-1 p-6 overflow-auto">{renderContent()}</div>
+            <Sidebar selectedOption={selectedOption} setSelectedOption={setSelectedOption} />
+            <div className="flex-1 p-6 overflow-auto">
+                {renderContent()}
+            </div>
+            {selectedTemplate && (
+            <ModalEditarPlantilla
+                template={selectedTemplate}
+                onClose={() => setSelectedTemplate(null)}
+            />
+        )}
+
+    
+            {isCreateTemplateModalOpen && (
+    <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
+        <div className="bg-white rounded-2xl shadow-lg p-6 w-[460px] relative">
+
+            {/* Botón cerrar (sin fondo, solo la X) */}
+            <button
+                className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 transition p-0 w-6 h-6 flex items-center justify-center"
+                onClick={() => setIsCreateTemplateModalOpen(false)}
+                style={{
+                    background: "transparent",     // Sin fondo
+                    border: "none",                 // Sin borde
+                    fontSize: "20px",                // Tamaño similar al figma
+                    lineHeight: "1",                 // Sin padding extra
+                    cursor: "pointer"
+                }}
+            >
+                ✕
+            </button>
+
+
+            {/* Título */}
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">Categoría de la plantilla</h2>
+
+            {/* Descripción */}
+            <p className="text-gray-500 mb-4">Seleccionar el tipo de plantilla</p>
+
+            {/* Select estilizado */}
+            <select className="w-full p-3 border border-gray-300 rounded-lg text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-[#A0B1FF]">
+                <option>Seleccionar...</option>
+                <option>Plantillas de mensajes</option>
+                <option>Plantillas de comentarios</option>
+            </select>
+
+            {/* Botón Siguiente con azul más oscuro */}
+            <button className="mt-6 w-full bg-[#A0B1FF] text-[white] py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#8F9FEF] transition">
+                Siguiente →
+            </button>
         </div>
-      );
+    </div>
+)}
+
+        </div>
+        
+    );
+    
+      
 };
 
 export default Dashboard;

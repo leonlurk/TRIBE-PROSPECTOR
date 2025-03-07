@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "./firebaseConfig"; // Asegúrate de importar la configuración de Firebase
+import { auth, db } from "./firebaseConfig"; // Importamos Firebase Auth y Firestore
+import { doc, setDoc } from "firebase/firestore"; // Importamos funciones para Firestore
 import { FaUser, FaLock, FaEnvelope } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 
@@ -14,8 +15,19 @@ const Register = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      navigate("/dashboard"); // Redirigir al dashboard después del registro
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 📌 Guardar el usuario en Firestore (colección "users")
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        username: username,
+        createdAt: new Date().toISOString(),
+        instagramToken: null,  // Esto se llenará cuando conecten Instagram
+        role: "user"            // Puedes cambiar esto según tu lógica de roles
+      });
+
+      navigate("/dashboard"); // Redirige al dashboard después de registrarse
     } catch (err) {
       console.error("Error al registrar:", err);
       setError("No se pudo crear la cuenta. Inténtalo de nuevo.");
@@ -31,10 +43,7 @@ const Register = () => {
 
       {/* Contenedor del formulario */}
       <div className="bg-white bg-opacity-10 backdrop-blur-lg p-10 rounded-[30px] shadow-2xl w-[450px] h-[650px] flex flex-col justify-center border border-white/20">
-        
-        <h2 className="text-white text-3xl font-semibold text-center mb-8">
-          Crear Cuenta
-        </h2>
+        <h2 className="text-white text-3xl font-semibold text-center mb-8">Crear Cuenta</h2>
         
         <form onSubmit={handleRegister} className="space-y-6">
           {/* Nombre de usuario */}

@@ -10,7 +10,7 @@ const logoPath = "/LogoNegro.png";
 
 // NUEVA lista de iconos desde assets
 const menuItems = [
-    { name: "Seguimiento", icon: "/assets/people.png" },
+    { name: "Whitelist", icon: "/assets/people.png" },
     { name: "Plantilla de mensajes", icon: "/assets/device-message.png" },
     { name: "Estadísticas", icon: "/assets/graph.png" },
     { name: "Nueva solicitud", icon: "/assets/add-square.png" },
@@ -51,14 +51,14 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {} }) => {
     };
     
 
-  //  const handleLogout = async () => {
-      //  try {
-         //   await auth.signOut();
-        //    navigate("/");
-      //  } catch (error) {
-       //     console.error("Logout error:", error);
-     //   }
-   // }; 
+    const handleLogout = async () => {
+        try {
+            await auth.signOut();
+            navigate("/");
+        } catch (error) {
+            console.error("Logout error:", error);
+        }
+    }; 
 
     return (
         <div className="h-screen w-[300px] bg-white shadow-lg rounded-tr-3xl flex flex-col justify-between p-6">
@@ -124,6 +124,13 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {} }) => {
                         <span className="text-xs text-gray-400">{user?.email || "Sin correo"}</span>
                     </div>
                 </div>
+                {/* Botón de Cerrar Sesión */}
+                <button
+                    onClick={handleLogout}
+                    className="mt-4 flex items-center justify-center space-x-3 p-3 rounded-lg bg-gray-200 text-black hover:bg-gray-300 transition w-full"
+                >
+                    <span>Cerrar Sesión</span>
+                </button>
             </div>
         </div>
     );

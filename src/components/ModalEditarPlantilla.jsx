@@ -1,25 +1,121 @@
 import PropTypes from 'prop-types';
 import { useState } from 'react';
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../firebaseConfig";
 
-const ModalEditarPlantilla = ({ template, onClose }) => {
+const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
     const [nombre, setNombre] = useState(template.name || "");
-    const [cuerpo, setCuerpo] = useState(`Hi / Hello / Bonjour\n\nJust wanted to say hello and wish you an amazing day ahead! 🚀\nJust wanted to say hi and spread some positivity your way. 👋🏻\nJust wanted to brighten your day with a quick hello! 🌸`);
+    const [plataforma, setPlataforma] = useState(template.platform || "");
+    const [tipo, setTipo] = useState(template.type || "Plantillas de mensajes");
+    const [cuerpo, setCuerpo] = useState(template.body || "");
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
 
+    const tipos = [
+        "Plantillas de mensajes",
+        "Plantillas de comentarios"
+    ];
+
+    const plataformas = [
+        "Instagram",
+        "WhatsApp",
+        "Facebook",
+        "TikTok",
+        "Email"
+    ];
+
+    const handleSave = async () => {
+        // Validar todos los campos
+        if (!nombre.trim()) {
+            setError("El nombre de la plantilla es obligatorio");
+            return;
+        }
+        
+        if (!plataforma.trim()) {
+            setError("La plataforma es obligatoria");
+            return;
+        }
+        
+        if (!cuerpo.trim()) {
+            setError("El cuerpo del mensaje es obligatorio");
+            return;
+        }
+    
+        // Validar template
+        if (!template || !template.id || !template.userId) {
+            setError("Error: Datos de plantilla incompletos");
+            console.error("Error: Falta el ID de la plantilla o el usuario.", template);
+            return;
+        }
+    
+        try {
+            setIsLoading(true);
+            setError("");
+            
+            const templateRef = doc(db, "users", template.userId, "templates", template.id);
+            await updateDoc(templateRef, {
+                name: nombre.trim(),
+                platform: plataforma.trim(),
+                type: tipo,
+                body: cuerpo.trim(),
+                updatedAt: new Date() // Añadir fecha de actualización
+            });
+    
+            setSuccess("Plantilla actualizada con éxito");
+            
+            // Notificar al componente padre que se ha actualizado la plantilla
+            if (onTemplateUpdated) {
+                onTemplateUpdated();
+            }
+            
+            // Cerrar el modal después de un breve retraso
+            setTimeout(() => {
+                onClose();
+            }, 1500);
+            
+        } catch (error) {
+            console.error("Error al actualizar la plantilla:", error);
+            setError(`Error al actualizar: ${error.message || "Algo salió mal"}`);
+            setIsLoading(false);
+        }
+    };
+
+    // Vista previa del mensaje
+    const handlePreview = () => {
+        // Aquí podrías implementar una vista previa más detallada si es necesario
+        alert(cuerpo);
+    };
+    
     return (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
             <div className="bg-white rounded-2xl shadow-lg p-6 w-[500px] relative">
+                
+                {/* Notificaciones de error y éxito */}
+                {error && (
+                    <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg">
+                        {error}
+                    </div>
+                )}
+                
+                {success && (
+                    <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded-lg">
+                        {success}
+                    </div>
+                )}
                 
                 {/* Botón de cerrar - sin fondo */}
                 <button
                     className="absolute top-4 right-4 text-gray-600 hover:text-gray-800 transition"
                     style={{ backgroundColor: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
                     onClick={onClose}
+                    disabled={isLoading}
                 >
                     ✕
                 </button>
 
                 {/* Título */}
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Crear plantilla mensaje</h2>
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">Editar plantilla de mensaje</h2>
 
                 {/* Nombre de la plantilla */}
                 <label className="text-gray-600 text-sm font-medium">Nombre de la plantilla</label>
@@ -29,46 +125,108 @@ const ModalEditarPlantilla = ({ template, onClose }) => {
                     onChange={(e) => setNombre(e.target.value)}
                     className="w-full p-3 mt-1 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700"
                     placeholder="Nombre de la plantilla"
+                    disabled={isLoading}
                 />
+
+                {/* Plataforma */}
+                <label className="text-gray-600 text-sm font-medium">Plataforma</label>
+                <select
+                    className="w-full p-3 mt-1 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700"
+                    value={plataforma}
+                    onChange={(e) => setPlataforma(e.target.value)}
+                    disabled={isLoading}
+                >
+                    <option value="">Seleccionar plataforma...</option>
+                    {plataformas.map(plat => (
+                        <option key={plat} value={plat}>{plat}</option>
+                    ))}
+                </select>
+
+                {/* Tipo de plantilla */}
+                <label className="text-gray-600 text-sm font-medium">Tipo de plantilla</label>
+                <select
+                    className="w-full p-3 mt-1 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700"
+                    value={tipo}
+                    onChange={(e) => setTipo(e.target.value)}
+                    disabled={isLoading}
+                >
+                    {tipos.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                    ))}
+                </select>
 
                 {/* Cuerpo */}
                 <label className="text-gray-600 text-sm font-medium">Cuerpo</label>
                 <div className="border border-gray-300 rounded-lg mt-1">
                     <div className="flex items-center justify-between bg-[#F3F2FC] p-2 rounded-t-lg">
-                        <button className="text-gray-600 text-xs font-medium bg-transparent border-none">👀 Vista previa</button>
-                        <button className="text-gray-600 text-xs font-medium bg-transparent border-none">➕ Insertar variable</button>
+                        <button 
+                            className="text-gray-600 text-xs font-medium bg-transparent border-none hover:text-gray-800"
+                            disabled={isLoading}
+                            onClick={handlePreview}
+                        >
+                            👀 Vista previa
+                        </button>
+                        <button 
+                            className="text-gray-600 text-xs font-medium bg-transparent border-none hover:text-gray-800"
+                            disabled={isLoading}
+                        >
+                            ➕ Insertar variable
+                        </button>
                     </div>
                     <textarea
                         value={cuerpo}
                         onChange={(e) => setCuerpo(e.target.value)}
                         className="w-full p-3 border-t border-gray-300 focus:outline-none resize-none h-32 bg-white text-gray-700"
+                        disabled={isLoading}
+                        placeholder="Escribe el contenido de tu plantilla aquí..."
                     />
                 </div>
 
-                {/* Mejorar con IA */}
-                <div className="flex items-center gap-2 mt-4">
-                    <input type="checkbox" id="mejorarIA" />
-                    <label htmlFor="mejorarIA" className="text-gray-600 text-sm">Mejorar usando IA</label>
-                </div>
-
-                {/* Iconos (sin fondos negros) */}
+                {/* Botones de formato */}
                 <div className="flex gap-4 text-gray-600 mt-4">
-                    <button className="p-0 m-0 flex items-center justify-center" style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                        📝
-                    </button>
-                    <button className="p-0 m-0 flex items-center justify-center" style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                        📎
-                    </button>
-                    <button className="p-0 m-0 flex items-center justify-center" style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                        🎙️
-                    </button>
-                </div>
-
+                <button 
+                    className="p-2 px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium"
+                    style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
+                    disabled={isLoading}
+                    onClick={() => setCuerpo(cuerpo + " [nombre]")}
+                    title="Insertar variable de nombre"
+                >
+                    📝 Nombre
+                </button>
+                <button 
+                    className="p-2 px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium"
+                    style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
+                    disabled={isLoading}
+                    onClick={() => setCuerpo(cuerpo + " [producto]")}
+                    title="Insertar variable de producto"
+                >
+                    📦 Producto
+                </button>
+                <button 
+                    className="p-2 px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium"
+                    style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
+                    disabled={isLoading}
+                    onClick={() => setCuerpo(cuerpo + " [emoji]")}
+                    title="Insertar emoji"
+                >
+                    😊 Emoji
+                </button>
+            </div>
                 {/* Botón Guardar (color ajustado) */}
                 <button
-                    className="mt-6 w-full bg-[#A0B1FF] text-[white] py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#B0BAF5] transition"
+                    className="mt-6 w-full bg-[#A0B1FF] text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#B0BAF5] transition"
+                    onClick={handleSave}
+                    disabled={isLoading}
                 >
-                    Guardar →
+                    {isLoading ? (
+                        <>
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Guardando...
+                        </>
+                    ) : "Guardar →"}
                 </button>
             </div>
         </div>
@@ -78,6 +236,7 @@ const ModalEditarPlantilla = ({ template, onClose }) => {
 ModalEditarPlantilla.propTypes = {
     template: PropTypes.object.isRequired,
     onClose: PropTypes.func.isRequired,
+    onTemplateUpdated: PropTypes.func, // Prop para notificar actualización
 };
 
 export default ModalEditarPlantilla;

@@ -1,8 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import Instagram2FAVerification from "./Instagram2FAVerification";
 
-const ConnectInstagram = ({ user, onConnect, errorMessage, showModal, setShowModal, instagramToken, onVerify2FA }) => {
+const API_BASE_URL = "https://alets.com.ar";
+
+const ConnectInstagram = ({ 
+    user, 
+    onConnect, 
+    errorMessage, 
+    showModal, 
+    setShowModal, 
+    instagramToken, 
+    onVerify2FA 
+}) => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [needs2FA, setNeeds2FA] = useState(false);
@@ -11,47 +21,159 @@ const ConnectInstagram = ({ user, onConnect, errorMessage, showModal, setShowMod
     const [hasLoginError, setHasLoginError] = useState(false);
     const [showRecoveryInfo, setShowRecoveryInfo] = useState(false);
     const [acceptedTerms, setAcceptedTerms] = useState(false);
+    const [localErrorMessage, setLocalErrorMessage] = useState("");
+    const [deviceId, setDeviceId] = useState("");
+    
+    // Load device ID on component mount
+    useEffect(() => {
+        const savedDeviceId = localStorage.getItem("instagram_device_id");
+        if (savedDeviceId) {
+            setDeviceId(savedDeviceId);
+        }
+    }, []);
 
     const handleCancel2FA = () => {
         setNeeds2FA(false);
         setUsername("");
     };
 
+    // Function for login with fetch instead of axios
+    const loginWithFetch = async (username, password) => {
+        try {
+            const formData = new FormData();
+            formData.append('username', username);
+            formData.append('password', password);
+            
+            // Add device ID if available
+            if (deviceId) {
+                formData.append('device_id', deviceId);
+                formData.append('login_attempt_count', "1");
+            }
+            
+            const headers = {
+                'Accept-Language': 'es-ES, en-US',
+            };
+            
+            if (deviceId) {
+                headers['X-IG-Device-ID'] = deviceId;
+                headers['X-IG-Android-ID'] = deviceId;
+            }
+            
+            const response = await fetch(`${API_BASE_URL}/login`, {
+                method: 'POST',
+                headers: headers,
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Save token
+                localStorage.setItem('instagram_bot_token', data.token);
+                
+                // Save cookies if available
+                if (data.cookies) {
+                    localStorage.setItem('instagram_cookies', JSON.stringify(data.cookies));
+                }
+                
+                // Save device ID if provided
+                if (data.device_id) {
+                    localStorage.setItem('instagram_device_id', data.device_id);
+                    setDeviceId(data.device_id);
+                }
+                
+                return { success: true, data: data };
+            } else if (data.status === 'needs_verification') {
+                // Save session ID if provided
+                if (data.session_id) {
+                    localStorage.setItem('instagram_2fa_session', data.session_id);
+                }
+                
+                // Return verification needed
+                return { 
+                    success: false, 
+                    verification: true, 
+                    username: data.username,
+                    data: data 
+                };
+            } else {
+                return { 
+                    success: false, 
+                    error: data.message || 'Error desconocido',
+                    data: data
+                };
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            return { 
+                success: false, 
+                error: error.message || 'Ocurrió un error durante el inicio de sesión',
+                data: null
+            };
+        }
+    };
+
     const handleConnectInstagram = async () => {
         if (isSubmitting) return;
         
+        // Reset error states
+        setLocalErrorMessage("");
+        setHasLoginError(false);
+        
         // Check terms first
         if (!acceptedTerms) {
+            setLocalErrorMessage("Debes aceptar los términos y condiciones para continuar.");
             setHasLoginError(true);
             return;
         }
         
         if (!email || !password) {
+            setLocalErrorMessage("Por favor ingresa tu correo electrónico y contraseña.");
             setHasLoginError(true);
             return;
         }
         
         try {
             setIsSubmitting(true);
-            setHasLoginError(false);
             
-            const result = await onConnect(email, password);
+            // Use fetch implementation instead of axios
+            const fetchResult = await loginWithFetch(email, password);
             
-            // If 2FA is needed, set the 2FA state
-            if (result && result.status === "needs_verification") {
-                setNeeds2FA(true);
-                setUsername(result.username);
-            } else if (result && result.status === "success") {
+            if (fetchResult.success) {
+                // Login successful
                 setShowModal(false);
-            } else if (result && (
-                result.status === "challenge_required" || 
-                result.error_type === "challenge_required" ||
-                result.status === "checkpoint_required"
-            )) {
-                setShowRecoveryInfo(true);
+                
+                // Call the parent component's handler with the original functionality
+                try {
+                    await onConnect(email, password);
+                } catch (err) {
+                    console.error("Error en onConnect original:", err);
+                    // Si falla el método original, al menos ya guardamos el token
+                }
+            } else if (fetchResult.verification) {
+                // 2FA needed
+                setNeeds2FA(true);
+                setUsername(fetchResult.username);
+            } else if (fetchResult.data) {
+                // Process various error scenarios
+                const data = fetchResult.data;
+                
+                if (data.status === "challenge_required" || 
+                    data.error_type === "challenge_required" ||
+                    data.status === "checkpoint_required") {
+                    setShowRecoveryInfo(true);
+                } else {
+                    setLocalErrorMessage(fetchResult.error || "Error desconocido al conectar con Instagram");
+                    setHasLoginError(true);
+                }
+            } else {
+                // Generic error handling
+                setLocalErrorMessage(fetchResult.error || "Error desconocido al conectar con Instagram");
+                setHasLoginError(true);
             }
         } catch (error) {
             console.error("Error during connection:", error);
+            setLocalErrorMessage("Error de red o conexión con la API.");
             setHasLoginError(true);
         } finally {
             setIsSubmitting(false);
@@ -69,7 +191,7 @@ const ConnectInstagram = ({ user, onConnect, errorMessage, showModal, setShowMod
             </button>
 
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center">
+                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
                     <div className="bg-white rounded-lg p-6 w-[400px] shadow-md">
                         {needs2FA ? (
                             <Instagram2FAVerification
@@ -77,6 +199,7 @@ const ConnectInstagram = ({ user, onConnect, errorMessage, showModal, setShowMod
                                 onVerify2FA={onVerify2FA}
                                 onCancel={handleCancel2FA}
                                 errorMessage={errorMessage}
+                                deviceId={deviceId}
                             />
                         ) : showRecoveryInfo ? (
                             <>
@@ -101,12 +224,17 @@ const ConnectInstagram = ({ user, onConnect, errorMessage, showModal, setShowMod
                             <>
                                 <h2 className="text-lg font-semibold text-black mb-4">Conectar cuenta de Instagram</h2>
                                 {errorMessage && (
-                                    <div className="text-red-500 text-sm mb-4">
+                                    <div className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">
                                         {errorMessage}
                                     </div>
                                 )}
-                                {hasLoginError && !errorMessage && (
-                                    <div className="text-red-500 text-sm mb-4">
+                                {localErrorMessage && !errorMessage && (
+                                    <div className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">
+                                        {localErrorMessage}
+                                    </div>
+                                )}
+                                {hasLoginError && !errorMessage && !localErrorMessage && (
+                                    <div className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">
                                         Error al conectar. Verifica tus credenciales.
                                     </div>
                                 )}
@@ -151,17 +279,25 @@ const ConnectInstagram = ({ user, onConnect, errorMessage, showModal, setShowMod
                                         isSubmitting || !acceptedTerms || !email || !password
                                             ? 'bg-gray-400 cursor-not-allowed'
                                             : 'bg-[#8998F1] hover:bg-[#7988E0] cursor-pointer'
-                                    } text-white rounded-md font-medium transition`}
+                                    } text-white rounded-md font-medium transition flex justify-center items-center`}
                                 >
-                                    {isSubmitting ? "Conectando..." : "Siguiente →"}
+                                    {isSubmitting ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Conectando...
+                                        </>
+                                    ) : "Siguiente →"}
                                 </button>
                             </>
                         )}
 
-                        {instagramToken && (
+                        {instagramToken && !needs2FA && !showRecoveryInfo && (
                             <div className="mt-4 p-3 bg-gray-100 border rounded">
                                 <p className="text-sm text-gray-600">Token de Instagram:</p>
-                                <p className="text-xs font-mono break-all">{instagramToken}</p>
+                                <p className="text-xs font-mono break-all">{instagramToken.substring(0, 40)}...</p>
                             </div>
                         )}
 
@@ -169,6 +305,7 @@ const ConnectInstagram = ({ user, onConnect, errorMessage, showModal, setShowMod
                             <button
                                 onClick={() => setShowModal(false)}
                                 className="text-gray-500 text-sm bg-[#CCCCCC] hover:bg-[#7988E0] transition px-4 py-2 rounded"
+                                disabled={isSubmitting}
                             >
                                 Cancelar
                             </button>
@@ -188,6 +325,11 @@ ConnectInstagram.propTypes = {
     showModal: PropTypes.bool.isRequired,
     setShowModal: PropTypes.func.isRequired,
     instagramToken: PropTypes.string,
+};
+
+ConnectInstagram.defaultProps = {
+    errorMessage: '',
+    instagramToken: ''
 };
 
 export default ConnectInstagram;

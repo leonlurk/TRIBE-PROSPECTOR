@@ -437,77 +437,77 @@ const filterTemplatesByPlatform = (platform) => {
     formData.append("device_id", deviceId);
 
     try {
-      const headers = {
-        'User-Agent': 'Instagram 219.0.0.12.117 Android',
-        'Accept-Language': 'es-ES, en-US',
-        'X-IG-Device-ID': deviceId,
-      };
+        const headers = {
+            'User-Agent': 'Instagram 219.0.0.12.117 Android',
+            'Accept-Language': 'es-ES, en-US',
+            'X-IG-Device-ID': deviceId,
+        };
 
-      if (sessionCookies) {
-        headers['Cookie'] = sessionCookies;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/verify_2fa`, {
-        method: "POST",
-        headers: headers,
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log("Respuesta de verificación 2FA:", data);
-
-      if (data.status === "success" && data.token) {
-        // Guardar toda la información de sesión
-        localStorage.setItem("instagram_bot_token", data.token);
-        setInstagramToken(data.token);
-        
-        if (data.cookies) {
-          localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
-          setSessionCookies(data.cookies);
-        }
-        
-        if (data.device_id) {
-          localStorage.setItem("instagram_device_id", data.device_id);
-          setDeviceId(data.device_id);
-        }
-        
-        setIsInstagramConnected(true);
-        setSelectedOption("Plantilla de mensajes");
-        showNotification("Verificación 2FA exitosa", "success");
-
-        if (user) {
-          const userRef = doc(db, "users", user.uid);
-          await setDoc(userRef, {
-            instagramToken: data.token,
-            instagramUsername: data.username,
-            instagramDeviceId: data.device_id || deviceId,
-            linkedAt: new Date().toISOString()
-          }, { merge: true });
+        if (sessionCookies) {
+            headers['Cookie'] = sessionCookies;
         }
 
-        return data;
-      } else if (data.status === "challenge_required" || data.error_type === "challenge_required") {
-        setErrorMessage("Instagram requiere verificación adicional. Por favor, verifica tu email o SMS e intenta de nuevo.");
-        showNotification("Instagram requiere verificación adicional", "warning");
-        throw new Error(data.message || "Se requiere verificación adicional");
-      } else {
-        setErrorMessage(data.message || "Error de verificación 2FA");
-        showNotification(data.message || "Error de verificación 2FA", "error");
-        throw new Error(data.message || "Error de verificación 2FA");
-      }
+        const response = await fetch(`${API_BASE_URL}/verify_2fa`, {
+            method: "POST",
+            headers: headers,
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log("Respuesta de verificación 2FA:", data);
+
+        if (data.status === "success" && data.token) {
+            // Guardar toda la información de sesión
+            localStorage.setItem("instagram_bot_token", data.token);
+            setInstagramToken(data.token);
+            
+            if (data.cookies) {
+                localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
+                setSessionCookies(data.cookies);
+            }
+            
+            if (data.device_id) {
+                localStorage.setItem("instagram_device_id", data.device_id);
+                setDeviceId(data.device_id);
+            }
+            
+            setIsInstagramConnected(true);
+            setSelectedOption("Plantilla de mensajes");
+            showNotification("Verificación 2FA exitosa", "success");
+
+            if (user) {
+                const userRef = doc(db, "users", user.uid);
+                await setDoc(userRef, {
+                    instagramToken: data.token,
+                    instagramUsername: data.username || username,
+                    instagramDeviceId: data.device_id || deviceId,
+                    linkedAt: new Date().toISOString()
+                }, { merge: true });
+            }
+
+            return data;
+        } else if (data.status === "challenge_required" || data.error_type === "challenge_required") {
+            setErrorMessage("Instagram requiere verificación adicional. Por favor, verifica tu email o SMS e intenta de nuevo.");
+            showNotification("Instagram requiere verificación adicional", "warning");
+            throw new Error(data.message || "Se requiere verificación adicional");
+        } else {
+            setErrorMessage(data.message || "Error de verificación 2FA");
+            showNotification(data.message || "Error de verificación 2FA", "error");
+            throw new Error(data.message || "Error de verificación 2FA");
+        }
     } catch (error) {
-      setErrorMessage("Error durante la verificación 2FA.");
-      showNotification("Error durante la verificación 2FA", "error");
-      console.error("Error de verificación 2FA:", error);
-      throw error;
+        setErrorMessage("Error durante la verificación 2FA.");
+        showNotification("Error durante la verificación 2FA", "error");
+        console.error("Error de verificación 2FA:", error);
+        throw error;
     } finally {
-      setIsLoading(false); // Quitar indicador de carga
+        setIsLoading(false); // Quitar indicador de carga
     }
-  };
+};
 
   const renderContent = () => {
     if (isLoading) {
@@ -538,17 +538,18 @@ const filterTemplatesByPlatform = (platform) => {
 
     if (selectedOption === "Conectar Instagram") {
       return (
-        <ConnectInstagram
-          user={user}
-          onConnect={handleConnectInstagram}
-          onVerify2FA={handleVerify2FA}
-          errorMessage={errorMessage}
-          showModal={showModal}
-          setShowModal={setShowModal}
-          instagramToken={instagramToken}
-        />
+          <ConnectInstagram
+              user={user}
+              onConnect={handleConnectInstagram}
+              onVerify2FA={handleVerify2FA}
+              errorMessage={errorMessage}
+              showModal={showModal}
+              setShowModal={setShowModal}
+              instagramToken={instagramToken}
+              deviceId={deviceId}
+          />
       );
-    }
+  }
 
     if (selectedOption === "Plantilla de mensajes") {
       return (

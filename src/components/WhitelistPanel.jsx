@@ -221,7 +221,7 @@ const WhitelistPanel = ({ user }) => {
                     notification.type === 'success' ? 'bg-green-500' : 
                     notification.type === 'error' ? 'bg-red-500' : 
                     notification.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                } text-white`}>
+                } text-black`}>
                     {notification.message}
                 </div>
             )}
@@ -232,7 +232,7 @@ const WhitelistPanel = ({ user }) => {
                         <h2 className="text-xl font-semibold text-gray-800">Mis Listas</h2>
                         <button
                             onClick={() => setIsCreatingWhitelist(true)}
-                            className="p-2 bg-[#5468FF] text-white rounded-full hover:bg-[#4356cc] transition"
+                            className="p-2 bg-[#5468FF] text-black rounded-full hover:bg-[#4356cc] transition"
                         >
                             <FaPlus />
                         </button>
@@ -251,7 +251,7 @@ const WhitelistPanel = ({ user }) => {
                                 <button
                                     onClick={createWhitelist}
                                     disabled={isLoading || !newWhitelistName.trim()}
-                                    className="flex-1 bg-[#5468FF] text-white py-1 rounded hover:bg-[#4356cc] transition disabled:bg-gray-400"
+                                    className="flex-1 bg-[#5468FF] text-black py-1 rounded hover:bg-[#4356cc] transition disabled:bg-gray-400"
                                 >
                                     Crear
                                 </button>
@@ -286,7 +286,7 @@ const WhitelistPanel = ({ user }) => {
                                         onClick={() => setSelectedWhitelist(whitelist)}
                                     >
                                         <div>
-                                            <h3 className="font-medium">{whitelist.name}</h3>
+                                        <h3 className="font-medium text-gray-800">{whitelist.name}</h3>
                                             <p className="text-xs text-gray-500">
                                                 {whitelist.userCount || 0} usuario(s)
                                             </p>
@@ -346,7 +346,7 @@ const WhitelistPanel = ({ user }) => {
                                         <table className="w-full">
                                             <thead>
                                                 <tr className="border-b">
-                                                    <th className="text-left py-2">Usuario</th>
+                                                <th className="text-left py-2 text-gray-700">Usuario</th>
                                                     <th className="text-left py-2">Fecha agregado</th>
                                                     <th className="text-right py-2">Acciones</th>
                                                 </tr>
@@ -354,8 +354,8 @@ const WhitelistPanel = ({ user }) => {
                                             <tbody>
                                                 {filteredUsers.map(user => (
                                                     <tr key={user.id} className="border-b hover:bg-gray-50">
-                                                        <td className="py-3">{user.username}</td>
-                                                        <td className="py-3">
+                                                        <td className="py-3 text-gray-800">{user.username}</td>
+                                                        <td className="py-3 text-gray-800">
                                                             {user.addedAt ? new Date(user.addedAt.toDate()).toLocaleDateString() : 'N/A'}
                                                         </td>
                                                         <td className="py-3 text-right">

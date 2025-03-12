@@ -37,82 +37,6 @@ const ConnectInstagram = ({
         setUsername("");
     };
 
-    // Function for login with fetch instead of axios
-    const loginWithFetch = async (username, password) => {
-        try {
-            const formData = new FormData();
-            formData.append('username', username);
-            formData.append('password', password);
-            
-            // Add device ID if available
-            if (deviceId) {
-                formData.append('device_id', deviceId);
-                formData.append('login_attempt_count', "1");
-            }
-            
-            const headers = {
-                'Accept-Language': 'es-ES, en-US',
-            };
-            
-            if (deviceId) {
-                headers['X-IG-Device-ID'] = deviceId;
-                headers['X-IG-Android-ID'] = deviceId;
-            }
-            
-            const response = await fetch(`${API_BASE_URL}/login`, {
-                method: 'POST',
-                headers: headers,
-                body: formData
-            });
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                // Save token
-                localStorage.setItem('instagram_bot_token', data.token);
-                
-                // Save cookies if available
-                if (data.cookies) {
-                    localStorage.setItem('instagram_cookies', JSON.stringify(data.cookies));
-                }
-                
-                // Save device ID if provided
-                if (data.device_id) {
-                    localStorage.setItem('instagram_device_id', data.device_id);
-                    setDeviceId(data.device_id);
-                }
-                
-                return { success: true, data: data };
-            } else if (data.status === 'needs_verification') {
-                // Save session ID if provided
-                if (data.session_id) {
-                    localStorage.setItem('instagram_2fa_session', data.session_id);
-                }
-                
-                // Return verification needed
-                return { 
-                    success: false, 
-                    verification: true, 
-                    username: data.username,
-                    data: data 
-                };
-            } else {
-                return { 
-                    success: false, 
-                    error: data.message || 'Error desconocido',
-                    data: data
-                };
-            }
-        } catch (error) {
-            console.error('Login error:', error);
-            return { 
-                success: false, 
-                error: error.message || 'Ocurrió un error durante el inicio de sesión',
-                data: null
-            };
-        }
-    };
-
     const handleConnectInstagram = async () => {
         if (isSubmitting) return;
         
@@ -136,39 +60,100 @@ const ConnectInstagram = ({
         try {
             setIsSubmitting(true);
             
-            // Use fetch implementation instead of axios
-            const fetchResult = await loginWithFetch(email, password);
+            // Create FormData for the request
+            const formData = new FormData();
+            formData.append('username', email);
+            formData.append('password', password);
             
-            if (fetchResult.success) {
+            // Add device ID if available
+            if (deviceId) {
+                formData.append('device_id', deviceId);
+                formData.append('login_attempt_count', "1");
+            }
+            
+            // Set headers according to API specifications
+            const headers = {
+                'User-Agent': 'Instagram 219.0.0.12.117 Android',
+                'Accept-Language': 'es-ES, en-US',
+            };
+            
+            if (deviceId) {
+                headers['X-IG-Device-ID'] = deviceId;
+                headers['X-IG-Android-ID'] = deviceId;
+            }
+            
+            // Make the login request
+            const response = await fetch(`${API_BASE_URL}/login`, {
+                method: 'POST',
+                headers: headers,
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log("Respuesta de login:", data);
+            
+            // Handle different response scenarios
+            if (data.status === 'success' && data.token) {
                 // Login successful
+                localStorage.setItem('instagram_bot_token', data.token);
+                
+                if (data.cookies) {
+                    localStorage.setItem('instagram_cookies', JSON.stringify(data.cookies));
+                }
+                
+                if (data.device_id) {
+                    localStorage.setItem('instagram_device_id', data.device_id);
+                    setDeviceId(data.device_id);
+                }
+                
                 setShowModal(false);
                 
-                // Call the parent component's handler with the original functionality
+                // Call parent component handler
                 try {
                     await onConnect(email, password);
                 } catch (err) {
-                    console.error("Error en onConnect original:", err);
-                    // Si falla el método original, al menos ya guardamos el token
+                    console.error("Error en onConnect:", err);
                 }
-            } else if (fetchResult.verification) {
-                // 2FA needed
+            } 
+            else if (data.status === 'needs_verification') {
+                // 2FA verification needed
+                console.log("Se requiere verificación 2FA para:", data.username || email);
                 setNeeds2FA(true);
-                setUsername(fetchResult.username);
-            } else if (fetchResult.data) {
-                // Process various error scenarios
-                const data = fetchResult.data;
+                setUsername(data.username || email);
                 
-                if (data.status === "challenge_required" || 
-                    data.error_type === "challenge_required" ||
-                    data.status === "checkpoint_required") {
-                    setShowRecoveryInfo(true);
-                } else {
-                    setLocalErrorMessage(fetchResult.error || "Error desconocido al conectar con Instagram");
-                    setHasLoginError(true);
+                // Store any session data if provided
+                if (data.session_id) {
+                    localStorage.setItem('instagram_2fa_session', data.session_id);
                 }
-            } else {
-                // Generic error handling
-                setLocalErrorMessage(fetchResult.error || "Error desconocido al conectar con Instagram");
+            } 
+            else if (data.status === 'challenge_required' || data.error_type === 'challenge_required') {
+                // Challenge verification required
+                console.log("Se requiere completar un desafío de seguridad");
+                setLocalErrorMessage("Instagram requiere verificación adicional. Por favor, verifica tu email o SMS e intenta de nuevo.");
+                setShowRecoveryInfo(true);
+            } 
+            else if (data.status === 'checkpoint_required' || data.error_type === 'checkpoint_challenge_required') {
+                // Checkpoint verification required
+                console.log("Se requiere verificación de dispositivo");
+                setLocalErrorMessage("Instagram requiere verificación de dispositivo. Por favor, revise su email o SMS.");
+                setShowRecoveryInfo(true);
+            }
+            else if (data.status === 'error' && data.message) {
+                // Handle error message
+                if (data.message.includes("temporarily blocked") || data.message.includes("suspicious")) {
+                    setLocalErrorMessage("Esta cuenta está temporalmente bloqueada por actividad sospechosa. Verifica tu email o accede directamente a Instagram para desbloquearla.");
+                } else {
+                    setLocalErrorMessage(data.message || "Error al conectar con Instagram");
+                }
+                setHasLoginError(true);
+            }
+            else {
+                // Unknown error
+                setLocalErrorMessage("Error desconocido al conectar con Instagram");
                 setHasLoginError(true);
             }
         } catch (error) {
@@ -177,6 +162,17 @@ const ConnectInstagram = ({
             setHasLoginError(true);
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    // Handle 2FA verification
+    const handle2FAVerification = async (username, verificationCode) => {
+        try {
+            const result = await onVerify2FA(username, verificationCode);
+            return result;
+        } catch (error) {
+            console.error("Error during 2FA verification:", error);
+            throw error;
         }
     };
 
@@ -196,7 +192,7 @@ const ConnectInstagram = ({
                         {needs2FA ? (
                             <Instagram2FAVerification
                                 username={username}
-                                onVerify2FA={onVerify2FA}
+                                onVerify2FA={handle2FAVerification}
                                 onCancel={handleCancel2FA}
                                 errorMessage={errorMessage}
                                 deviceId={deviceId}

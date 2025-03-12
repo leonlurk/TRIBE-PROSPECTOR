@@ -35,27 +35,27 @@ const Register = () => {
   };
 
   return (
-    <div className="relative flex items-center justify-end h-screen bg-cover bg-center bg-no-repeat p-10"
+    <div className="relative flex items-center justify-center md:justify-end h-screen bg-cover bg-center bg-no-repeat p-4 md:p-10"
       style={{ backgroundImage: "url('/space-background.jpg')" }}>
 
       {/* Logo */}
-      <img src="/logo.png" alt="TRIBE 4.0" className="absolute top-[5%] left-[8%] w-[200px]" />
+      <img src="/logo.png" alt="TRIBE 4.0" className="absolute top-[5%] left-[5%] md:left-[8%] w-[150px] md:w-[200px]" />
 
       {/* Contenedor del formulario */}
-      <div className="bg-white bg-opacity-10 backdrop-blur-lg p-10 rounded-[30px] shadow-2xl w-[450px] h-[650px] flex flex-col justify-center border border-white/20">
-        <h2 className="text-white text-3xl font-semibold text-center mb-8">Crear Cuenta</h2>
+      <div className="bg-white bg-opacity-10 backdrop-blur-lg p-6 md:p-10 rounded-[20px] md:rounded-[30px] shadow-2xl w-full max-w-[400px] md:w-[450px] h-auto min-h-[500px] md:h-[650px] flex flex-col justify-center border border-white/20">
+        <h2 className="text-white text-2xl md:text-3xl font-semibold text-center mb-6 md:mb-8">Crear Cuenta</h2>
         
-        <form onSubmit={handleRegister} className="space-y-6">
+        <form onSubmit={handleRegister} className="space-y-4 md:space-y-6">
           {/* Nombre de usuario */}
           <div className="relative">
             <label className="text-gray-300 block mb-2 text-sm font-medium">Usuario</label>
-            <div className="flex items-center bg-gray-900 bg-opacity-50 rounded-full p-3">
-              <span className="text-gray-400 px-3"><FaUser /></span>
+            <div className="flex items-center bg-gray-900 bg-opacity-50 rounded-full p-2 md:p-3">
+              <span className="text-gray-400 px-2 md:px-3"><FaUser /></span>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-transparent text-white border-none focus:outline-none placeholder-gray-400"
+                className="w-full bg-transparent text-white border-none focus:outline-none placeholder-gray-400 text-sm md:text-base"
                 placeholder="Tu nombre de usuario"
                 required
               />
@@ -65,13 +65,13 @@ const Register = () => {
           {/* Correo electrónico */}
           <div className="relative">
             <label className="text-gray-300 block mb-2 text-sm font-medium">Correo Electrónico</label>
-            <div className="flex items-center bg-gray-900 bg-opacity-50 rounded-full p-3">
-              <span className="text-gray-400 px-3"><FaEnvelope /></span>
+            <div className="flex items-center bg-gray-900 bg-opacity-50 rounded-full p-2 md:p-3">
+              <span className="text-gray-400 px-2 md:px-3"><FaEnvelope /></span>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-transparent text-white border-none focus:outline-none placeholder-gray-400"
+                className="w-full bg-transparent text-white border-none focus:outline-none placeholder-gray-400 text-sm md:text-base"
                 placeholder="tucorreo@example.com"
                 required
               />
@@ -81,13 +81,13 @@ const Register = () => {
           {/* Contraseña */}
           <div className="relative">
             <label className="text-gray-300 block mb-2 text-sm font-medium">Contraseña</label>
-            <div className="flex items-center bg-gray-900 bg-opacity-50 rounded-full p-3">
-              <span className="text-gray-400 px-3"><FaLock /></span>
+            <div className="flex items-center bg-gray-900 bg-opacity-50 rounded-full p-2 md:p-3">
+              <span className="text-gray-400 px-2 md:px-3"><FaLock /></span>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-transparent text-white border-none focus:outline-none placeholder-gray-400"
+                className="w-full bg-transparent text-white border-none focus:outline-none placeholder-gray-400 text-sm md:text-base"
                 placeholder="••••••••"
                 required
               />
@@ -95,18 +95,18 @@ const Register = () => {
           </div>
 
           {/* Mensaje de error */}
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          {error && <p className="text-red-500 text-xs md:text-sm text-center">{error}</p>}
 
           {/* Botón de Registro */}
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white font-semibold py-3 rounded-full transition-shadow shadow-md hover:shadow-lg"
+            className="w-full bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white font-semibold py-2 md:py-3 rounded-full transition-shadow shadow-md hover:shadow-lg text-sm md:text-base"
           >
             Registrarse
           </button>
 
           {/* Ya tienes cuenta */}
-          <div className="text-center text-gray-400 text-sm mt-6">
+          <div className="text-center text-gray-400 text-xs md:text-sm mt-4 md:mt-6">
             ¿Ya tienes cuenta?{" "}
             <a href="/" className="text-white font-bold hover:underline">
               Inicia Sesión

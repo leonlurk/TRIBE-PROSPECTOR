@@ -236,19 +236,19 @@ const Instagram2FAVerification = ({
     };
 
     return (
-        <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-md">
-            <h2 className="text-lg font-semibold text-black mb-4">
+        <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-md shadow-md">
+            <h2 className="text-base md:text-lg font-semibold text-black mb-4">
                 Verificación de dos factores
                 {isLocalhost && <span className="text-xs text-blue-500 ml-2">(Desarrollo)</span>}
             </h2>
             
             {(errorMessage || localError) && (
-                <div className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">
+                <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
                     {errorMessage || localError}
                 </div>
             )}
             
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-xs md:text-sm text-gray-600 mb-4">
                 Ingresa el código de verificación enviado a tu dispositivo o aplicación de autenticación.
             </p>
             
@@ -264,7 +264,7 @@ const Instagram2FAVerification = ({
                             setVerificationCode(onlyDigits);
                         }
                     }}
-                    className="w-full p-3 border border-gray-300 rounded-md mb-1 text-black placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full p-2 md:p-3 border border-gray-300 rounded-md mb-1 text-black placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm md:text-base"
                     maxLength={6}
                     autoFocus
                 />
@@ -288,7 +288,7 @@ const Instagram2FAVerification = ({
                         isSubmitting || !verificationCode.trim() || remainingTime <= 0
                             ? 'bg-gray-400' 
                             : 'bg-[#8998F1] hover:bg-[#7988E0]'
-                    } text-white rounded-md font-medium transition flex justify-center items-center`}
+                    } text-white rounded-md font-medium transition flex justify-center items-center text-xs md:text-sm`}
                 >
                     {isSubmitting ? (
                         <>
@@ -304,7 +304,7 @@ const Instagram2FAVerification = ({
                 <button
                     onClick={onCancel}
                     disabled={isSubmitting}
-                    className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+                    className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition text-xs md:text-sm"
                 >
                     Cancelar
                 </button>
@@ -315,7 +315,7 @@ const Instagram2FAVerification = ({
                 <button
                     onClick={requestNewCode}
                     disabled={isSubmitting || remainingTime > 90} // Disable until 30 seconds have passed
-                    className={`text-sm ${
+                    className={`text-xs md:text-sm ${
                         isSubmitting || remainingTime > 90
                             ? 'text-gray-400 cursor-not-allowed'
                             : 'text-blue-600 hover:underline cursor-pointer'
@@ -327,7 +327,7 @@ const Instagram2FAVerification = ({
                 </button>
             </div>
 
-            <div className="mt-4 text-sm text-gray-600 bg-gray-50 p-3 rounded">
+            <div className="mt-4 text-xs md:text-sm text-gray-600 bg-gray-50 p-2 md:p-3 rounded">
                 <p className="font-medium mb-1">Consejos:</p>
                 <ul className="list-disc list-inside text-xs space-y-1">
                     <li>Revisa tu aplicación de autenticación (como Google Authenticator)</li>

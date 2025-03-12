@@ -3,7 +3,7 @@ import { db, auth } from "./firebaseConfig";
 import { collection, addDoc, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import { FaSearch, FaPlus, FaSlidersH } from "react-icons/fa";
+import { FaSearch, FaPlus, FaSlidersH, FaBars } from "react-icons/fa";
 import ChartComponent from "./components/ChartComponent";
 import ConnectInstagram from "./components/ConnectInstagram";
 import NuevaSolicitudPanel from "./components/NuevaSolicitudPanel";
@@ -49,6 +49,8 @@ const Dashboard = () => {
   const [filteredTemplates, setFilteredTemplates] = useState([]); // Estado para plantillas filtradas
   // Estado para mostrar notificaciones
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
+  // Estado para manejar la visibilidad del sidebar en móviles
+  const [showSidebar, setShowSidebar] = useState(false);
 
   // Función para mostrar notificación
   const showNotification = (message, type = "info") => {
@@ -234,7 +236,19 @@ const filterTemplatesByPlatform = (platform) => {
       }
     });
 
-    return () => unsubscribe();
+    // Cerrar el menú lateral cuando se cambia el tamaño de la ventana a desktop
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setShowSidebar(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      unsubscribe();
+      window.removeEventListener('resize', handleResize);
+    };
 }, [navigate, fetchTemplates, checkInstagramSession]);
 
   const saveTemplate = async () => {
@@ -519,8 +533,8 @@ const filterTemplatesByPlatform = (platform) => {
     if (selectedOption === "Nueva solicitud") {
       if (!isInstagramConnected) {
         return (
-          <div className="p-6 bg-[#F3F2FC] min-h-screen flex justify-center items-center">
-            <p className="text-red-600 font-semibold">Debes conectar tu cuenta de Instagram para acceder a esta sección.</p>
+          <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen flex justify-center items-center">
+            <p className="text-red-600 font-semibold text-center">Debes conectar tu cuenta de Instagram para acceder a esta sección.</p>
           </div>
         );
       }
@@ -553,29 +567,29 @@ const filterTemplatesByPlatform = (platform) => {
 
     if (selectedOption === "Plantilla de mensajes") {
       return (
-        <div className="p-6 bg-[#F3F2FC] min-h-screen">
-          <div className="flex justify-between items-center mb-6">
-            <div className="relative w-1/3">
+        <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-4">
+            <div className="relative w-full md:w-1/3">
               <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" />
               <input
                 type="text"
                 placeholder="Buscar Plantilla"
                 value={searchQuery}
                 onChange={(e) => searchTemplates(e.target.value)}
-                className="p-4 pl-14 border border-gray-300 rounded-full w-full bg-white shadow-sm text-gray-600 focus:outline-none"
+                className="p-3 md:p-4 pl-14 border border-gray-300 rounded-full w-full bg-white shadow-sm text-gray-600 focus:outline-none"
                 />
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-2 md:gap-4">
               <div className="relative">
                 <button
-                  className="px-6 py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium"
+                  className="px-4 md:px-6 py-2 md:py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium text-sm md:text-base w-full md:w-auto"
                   onClick={togglePlatformMenu}
                 >
                   {selectedPlatform} ▼
                 </button>
 
                 {isPlatformMenuOpen && (
-                  <div className="absolute z-50 mt-2 bg-white border border-gray-300 rounded-xl shadow-lg w-44 overflow-hidden">
+                  <div className="absolute z-50 mt-2 bg-white border border-gray-300 rounded-xl shadow-lg w-full min-w-[10rem] overflow-hidden">
                     <ul className="text-gray-700">
                       {platforms.map((platform) => (
                         <li
@@ -592,20 +606,20 @@ const filterTemplatesByPlatform = (platform) => {
               </div>
 
               <button
-                className="px-6 py-3 bg-[#5468FF] text-white rounded-full shadow-sm font-semibold flex items-center gap-2 hover:bg-[#4356cc] transition"
+                className="px-4 md:px-6 py-2 md:py-3 bg-[#5468FF] text-white rounded-full shadow-sm font-semibold flex items-center gap-2 hover:bg-[#4356cc] transition text-sm md:text-base"
                 onClick={openCreateTemplateModal}>
                 <FaPlus /> Crear Plantilla
               </button>
               <div className="relative">
                 <button
-                  className="px-6 py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium"
+                  className="px-4 md:px-6 py-2 md:py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium text-sm md:text-base w-full md:w-auto"
                   onClick={toggleTypeMenu}
                 >
                   {selectedType} ▼
                 </button>
 
                 {isTypeMenuOpen && (
-                  <div className="absolute z-50 mt-2 bg-white border border-gray-300 rounded-xl shadow-lg w-60 overflow-hidden right-0">
+                  <div className="absolute z-50 mt-2 bg-white border border-gray-300 rounded-xl shadow-lg w-full min-w-[10rem] overflow-hidden right-0">
                     <ul className="text-gray-700">
                       {types.map((type) => (
                         <li
@@ -638,22 +652,22 @@ const filterTemplatesByPlatform = (platform) => {
                     >
                         <div className="flex items-center gap-4">
                         <div
-                            className="w-12 h-12 flex items-center justify-center"
+                            className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center"
                             style={{ backgroundImage: 'url(/assets/Rectangle.png)', backgroundSize: 'cover' }}
                         >
                             <img
                             src={index % 2 === 0 ? "/assets/message.png" : "/assets/messages-2.png"}
                             alt="Message Icon"
-                            className="w-8 h-8 object-contain"
+                            className="w-6 h-6 md:w-8 md:h-8 object-contain"
                             />
                         </div>
-                        <div>
-                            <p className="font-semibold text-gray-800">{template.name}</p>
-                            <p className="text-sm text-gray-500">{template.platform || "Sin plataforma"}</p>
+                        <div className="overflow-hidden">
+                            <p className="font-semibold text-gray-800 truncate text-sm md:text-base">{template.name}</p>
+                            <p className="text-xs md:text-sm text-gray-500 truncate">{template.platform || "Sin plataforma"}</p>
                         </div>
                         </div>
                         <button
-                        className="cursor-pointer flex items-center justify-center"
+                        className="cursor-pointer flex items-center justify-center ml-2"
                         style={{
                             backgroundColor: "transparent",
                             border: "none",
@@ -666,13 +680,13 @@ const filterTemplatesByPlatform = (platform) => {
                         <img
                             src="/assets/setting-5.png"
                             alt="Opciones"
-                            className="w-11 h-11"
+                            className="w-9 h-9 md:w-11 md:h-11"
                         />
                         </button>
                     </div>
                     )))
                 : (
-                    <div className="p-8 bg-white rounded-2xl text-center">
+                    <div className="p-4 md:p-8 bg-white rounded-2xl text-center">
                     <p className="text-gray-500">
                         {searchQuery 
                         ? "No se encontraron plantillas con esos criterios de búsqueda." 
@@ -689,37 +703,37 @@ const filterTemplatesByPlatform = (platform) => {
 
     if (selectedOption === "Estadísticas") {
       return (
-        <div className="p-6 bg-[#F3F2FC] min-h-screen">
-          <div className="grid grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-md">
+        <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md">
               <div className="flex justify-between items-center">
-                <h2 className="text-4xl font-bold">0</h2>
+                <h2 className="text-2xl md:text-4xl font-bold">0</h2>
                 <FaSlidersH className="text-gray-500" />
               </div>
               <p className="text-gray-500">Mensajes enviados</p>
-              <div className="h-64">
+              <div className="h-48 md:h-64">
                 <ChartComponent />
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl shadow-md">
-              <h3 className="text-lg font-semibold">Lead Generados</h3>
-              <p className="text-2xl font-bold">0</p>
+            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md">
+              <h3 className="text-base md:text-lg font-semibold">Lead Generados</h3>
+              <p className="text-xl md:text-2xl font-bold">0</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 mt-6">
-            <div className="bg-white p-6 rounded-2xl shadow-md">
-              <h3 className="text-lg font-semibold">Tasa de Cierre</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mt-4 md:mt-6">
+            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md">
+              <h3 className="text-base md:text-lg font-semibold">Tasa de Cierre</h3>
               <p className="text-gray-500">Promedio <span className="font-bold">0 Días</span></p>
             </div>
-            <div className="bg-white p-6 rounded-2xl shadow-md">
-              <h3 className="text-lg font-semibold">Tasa de Conversión</h3>
-              <p className="text-2xl font-bold">0%</p>
+            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md">
+              <h3 className="text-base md:text-lg font-semibold">Tasa de Conversión</h3>
+              <p className="text-xl md:text-2xl font-bold">0%</p>
             </div>
           </div>
-          <div className="flex justify-center items-center py-6">
-            <h2 className="text-xl font-semibold text-gray-500">Próximamente</h2>
+          <div className="flex justify-center items-center py-4 md:py-6">
+            <h2 className="text-lg md:text-xl font-semibold text-gray-500">Próximamente</h2>
           </div>
         </div>
       );
@@ -728,8 +742,8 @@ const filterTemplatesByPlatform = (platform) => {
     if (selectedOption === "Send Media") {
         if (!isInstagramConnected) {
           return (
-            <div className="p-6 bg-[#F3F2FC] min-h-screen flex justify-center items-center">
-              <p className="text-red-600 font-semibold">Debes conectar tu cuenta de Instagram para acceder a esta sección.</p>
+            <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen flex justify-center items-center">
+              <p className="text-red-600 font-semibold text-center">Debes conectar tu cuenta de Instagram para acceder a esta sección.</p>
             </div>
           );
         }
@@ -743,7 +757,7 @@ const filterTemplatesByPlatform = (platform) => {
       }
     
 
-    return <div className="text-center p-10">Seleccione una opción del menú</div>;
+    return <div className="text-center p-6 md:p-10">Seleccione una opción del menú</div>;
   };
 
   // Manejador para la actualización de plantillas
@@ -753,23 +767,51 @@ const filterTemplatesByPlatform = (platform) => {
     }
   };
 
+  // Toggle para mostrar/ocultar el sidebar en móviles
+  const toggleSidebar = () => {
+    setShowSidebar(!showSidebar);
+  };
+
   return (
-    <div className="h-screen flex bg-gray-100">
+    <div className="h-screen flex flex-col md:flex-row bg-gray-100 relative">
       {/* Sistema de notificaciones simple */}
       {notification.show && (
-        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+        <div className={`fixed top-4 right-4 z-50 p-3 md:p-4 rounded-lg shadow-lg ${
           notification.type === 'success' ? 'bg-green-500' : 
           notification.type === 'error' ? 'bg-red-500' : 
           notification.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-        } text-white`}>
+        } text-white text-sm md:text-base max-w-[90%] md:max-w-md`}>
           {notification.message}
         </div>
       )}
 
-      <Sidebar selectedOption={selectedOption} setSelectedOption={setSelectedOption} />
-      <div className="flex-1 p-6 overflow-auto">
+      {/* Botón de menú móvil */}
+      <button 
+        className="md:hidden fixed top-4 left-4 z-40 bg-[#5468FF] text-white p-2 rounded-full shadow-md"
+        onClick={toggleSidebar}
+      >
+        <FaBars size={20} />
+      </button>
+
+      {/* Sidebar para móvil con overlay */}
+      <div className={`fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden transition-opacity duration-300 ${
+        showSidebar ? 'opacity-100' : 'opacity-0 pointer-events-none'
+      }`} onClick={toggleSidebar}></div>
+
+      {/* Sidebar adaptativo */}
+      <div className={`fixed md:static h-screen z-40 transition-all duration-300 transform 
+        ${showSidebar ? 'translate-x-0' : '-translate-x-full'} 
+        md:translate-x-0 md:flex md:h-screen md:z-auto`}>
+        <Sidebar selectedOption={selectedOption} setSelectedOption={(option) => {
+          setSelectedOption(option);
+          setShowSidebar(false); // Cerrar sidebar en móvil al seleccionar opción
+        }} />
+      </div>
+
+      <div className="flex-1 p-2 md:p-6 overflow-auto pt-16 md:pt-6">
         {renderContent()}
       </div>
+
       {selectedTemplate && (
         <ModalEditarPlantilla
           template={selectedTemplate}
@@ -779,8 +821,8 @@ const filterTemplatesByPlatform = (platform) => {
       )}
 
       {isCreateTemplateModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
-          <div className="bg-white rounded-2xl shadow-lg p-6 w-[460px] relative">
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-lg p-5 md:p-6 w-full max-w-[460px] relative">
             <button
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 transition p-0 w-6 h-6 flex items-center justify-center"
               onClick={() => setIsCreateTemplateModalOpen(false)}
@@ -805,7 +847,6 @@ const filterTemplatesByPlatform = (platform) => {
               onChange={(e) => setNewTemplate(e.target.value)}
             />
 
-            {/* Selector de plataforma */}
             {/* Selector de plataforma */}
             <select
             className="w-full p-3 mt-3 border border-gray-300 rounded-lg text-gray-600 bg-white focus:outline-none"

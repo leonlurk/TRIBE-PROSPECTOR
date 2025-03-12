@@ -177,18 +177,18 @@ const ConnectInstagram = ({
     };
 
     return (
-        <div className="p-6 bg-[#F3F2FC] min-h-screen">
-            <h1 className="text-2xl font-bold mb-4 text-[#393346]">Bienvenido, {user?.displayName || "Usuario"}</h1>
+        <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
+            <h1 className="text-xl md:text-2xl font-bold mb-4 text-[#393346]">Bienvenido, {user?.displayName || "Usuario"}</h1>
             <button
                 onClick={() => setShowModal(true)}
-                className="px-6 py-3 bg-blue-600 text-white rounded-full shadow-sm font-semibold hover:bg-blue-700 transition"
+                className="px-4 md:px-6 py-2 md:py-3 bg-blue-600 text-white rounded-full shadow-sm font-semibold hover:bg-blue-700 transition text-sm md:text-base"
             >
                 Conectar Instagram
             </button>
 
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-[400px] shadow-md">
+                <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-[400px] shadow-md">
                         {needs2FA ? (
                             <Instagram2FAVerification
                                 username={username}
@@ -199,8 +199,8 @@ const ConnectInstagram = ({
                             />
                         ) : showRecoveryInfo ? (
                             <>
-                                <h2 className="text-lg font-semibold text-black mb-4">Recuperar acceso a Instagram</h2>
-                                <div className="text-gray-700 text-sm mb-4">
+                                <h2 className="text-base md:text-lg font-semibold text-black mb-4">Recuperar acceso a Instagram</h2>
+                                <div className="text-gray-700 text-xs md:text-sm mb-4">
                                     <p className="mb-2">Instagram ha detectado actividad inusual en tu cuenta y requiere verificación adicional:</p>
                                     <ol className="list-decimal pl-5 space-y-1">
                                         <li>Abre la aplicación de Instagram en tu dispositivo</li>
@@ -211,26 +211,26 @@ const ConnectInstagram = ({
                                 </div>
                                 <button
                                     onClick={() => setShowRecoveryInfo(false)}
-                                    className="w-full py-2 bg-[#8998F1] text-white rounded-md font-medium hover:bg-[#7988E0] transition"
+                                    className="w-full py-2 bg-[#8998F1] text-white rounded-md font-medium hover:bg-[#7988E0] transition text-sm md:text-base"
                                 >
                                     Volver al inicio de sesión
                                 </button>
                             </>
                         ) : (
                             <>
-                                <h2 className="text-lg font-semibold text-black mb-4">Conectar cuenta de Instagram</h2>
+                                <h2 className="text-base md:text-lg font-semibold text-black mb-4">Conectar cuenta de Instagram</h2>
                                 {errorMessage && (
-                                    <div className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">
+                                    <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
                                         {errorMessage}
                                     </div>
                                 )}
                                 {localErrorMessage && !errorMessage && (
-                                    <div className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">
+                                    <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
                                         {localErrorMessage}
                                     </div>
                                 )}
                                 {hasLoginError && !errorMessage && !localErrorMessage && (
-                                    <div className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded">
+                                    <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
                                         Error al conectar. Verifica tus credenciales.
                                     </div>
                                 )}
@@ -239,7 +239,7 @@ const ConnectInstagram = ({
                                     placeholder="Correo de Instagram"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full p-3 border border-gray-300 rounded-md mb-3 text-black placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full p-2 md:p-3 border border-gray-300 rounded-md mb-3 text-black placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm md:text-base"
                                 />
 
                                 <input
@@ -247,18 +247,18 @@ const ConnectInstagram = ({
                                     placeholder="Contraseña"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full p-3 border border-gray-300 rounded-md mb-3 text-black placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full p-2 md:p-3 border border-gray-300 rounded-md mb-3 text-black placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm md:text-base"
                                 />
 
-                                <div className="flex items-center gap-2 mb-4">
+                                <div className="flex items-start gap-2 mb-4">
                                     <input 
                                         type="checkbox" 
                                         id="prospectar" 
-                                        className="cursor-pointer" 
+                                        className="mt-1 cursor-pointer" 
                                         checked={acceptedTerms}
                                         onChange={(e) => setAcceptedTerms(e.target.checked)}
                                     />
-                                    <label htmlFor="prospectar" className="text-sm text-black cursor-pointer">
+                                    <label htmlFor="prospectar" className="text-xs md:text-sm text-black cursor-pointer">
                                         Aceptar términos y condiciones y políticas de privacidad en el inicio de sesión de instagram. Los términos y condiciones y políticas de privacidad se vean en la misma pagina.
                                     </label>
                                 </div>
@@ -275,7 +275,7 @@ const ConnectInstagram = ({
                                         isSubmitting || !acceptedTerms || !email || !password
                                             ? 'bg-gray-400 cursor-not-allowed'
                                             : 'bg-[#8998F1] hover:bg-[#7988E0] cursor-pointer'
-                                    } text-white rounded-md font-medium transition flex justify-center items-center`}
+                                    } text-white rounded-md font-medium transition flex justify-center items-center text-sm md:text-base`}
                                 >
                                     {isSubmitting ? (
                                         <>
@@ -291,8 +291,8 @@ const ConnectInstagram = ({
                         )}
 
                         {instagramToken && !needs2FA && !showRecoveryInfo && (
-                            <div className="mt-4 p-3 bg-gray-100 border rounded">
-                                <p className="text-sm text-gray-600">Token de Instagram:</p>
+                            <div className="mt-4 p-2 md:p-3 bg-gray-100 border rounded">
+                                <p className="text-xs md:text-sm text-gray-600">Token de Instagram:</p>
                                 <p className="text-xs font-mono break-all">{instagramToken.substring(0, 40)}...</p>
                             </div>
                         )}
@@ -300,7 +300,7 @@ const ConnectInstagram = ({
                         <div className="text-right mt-2">
                             <button
                                 onClick={() => setShowModal(false)}
-                                className="text-gray-500 text-sm bg-[#CCCCCC] hover:bg-[#7988E0] transition px-4 py-2 rounded"
+                                className="text-gray-500 text-xs md:text-sm bg-[#CCCCCC] hover:bg-[#7988E0] transition px-3 md:px-4 py-1 md:py-2 rounded"
                                 disabled={isSubmitting}
                             >
                                 Cancelar

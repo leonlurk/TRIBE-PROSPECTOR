@@ -88,25 +88,25 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
     };
     
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
-            <div className="bg-white rounded-2xl shadow-lg p-6 w-[500px] relative">
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-lg p-4 md:p-6 w-full max-w-[500px] relative">
                 
                 {/* Notificaciones de error y éxito */}
                 {error && (
-                    <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg">
+                    <div className="mb-4 p-2 md:p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm">
                         {error}
                     </div>
                 )}
                 
                 {success && (
-                    <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded-lg">
+                    <div className="mb-4 p-2 md:p-3 bg-green-100 border border-green-300 text-green-700 rounded-lg text-sm">
                         {success}
                     </div>
                 )}
                 
                 {/* Botón de cerrar - sin fondo */}
                 <button
-                    className="absolute top-4 right-4 text-gray-600 hover:text-gray-800 transition"
+                    className="absolute top-3 right-3 md:top-4 md:right-4 text-gray-600 hover:text-gray-800 transition"
                     style={{ backgroundColor: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
                     onClick={onClose}
                     disabled={isLoading}
@@ -115,23 +115,23 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                 </button>
 
                 {/* Título */}
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Editar plantilla de mensaje</h2>
+                <h2 className="text-base md:text-lg font-semibold text-gray-800 mb-3 md:mb-4">Editar plantilla de mensaje</h2>
 
                 {/* Nombre de la plantilla */}
-                <label className="text-gray-600 text-sm font-medium">Nombre de la plantilla</label>
+                <label className="text-gray-600 text-xs md:text-sm font-medium">Nombre de la plantilla</label>
                 <input
                     type="text"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    className="w-full p-3 mt-1 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700"
+                    className="w-full p-2 md:p-3 mt-1 mb-3 md:mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700 text-sm md:text-base"
                     placeholder="Nombre de la plantilla"
                     disabled={isLoading}
                 />
 
                 {/* Plataforma */}
-                <label className="text-gray-600 text-sm font-medium">Plataforma</label>
+                <label className="text-gray-600 text-xs md:text-sm font-medium">Plataforma</label>
                 <select
-                    className="w-full p-3 mt-1 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700"
+                    className="w-full p-2 md:p-3 mt-1 mb-3 md:mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700 text-sm md:text-base"
                     value={plataforma}
                     onChange={(e) => setPlataforma(e.target.value)}
                     disabled={isLoading}
@@ -143,9 +143,9 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                 </select>
 
                 {/* Tipo de plantilla */}
-                <label className="text-gray-600 text-sm font-medium">Tipo de plantilla</label>
+                <label className="text-gray-600 text-xs md:text-sm font-medium">Tipo de plantilla</label>
                 <select
-                    className="w-full p-3 mt-1 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700"
+                    className="w-full p-2 md:p-3 mt-1 mb-3 md:mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700 text-sm md:text-base"
                     value={tipo}
                     onChange={(e) => setTipo(e.target.value)}
                     disabled={isLoading}
@@ -156,7 +156,7 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                 </select>
 
                 {/* Cuerpo */}
-                <label className="text-gray-600 text-sm font-medium">Cuerpo</label>
+                <label className="text-gray-600 text-xs md:text-sm font-medium">Cuerpo</label>
                 <div className="border border-gray-300 rounded-lg mt-1">
                     <div className="flex items-center justify-between bg-[#F3F2FC] p-2 rounded-t-lg">
                         <button 
@@ -176,16 +176,16 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                     <textarea
                         value={cuerpo}
                         onChange={(e) => setCuerpo(e.target.value)}
-                        className="w-full p-3 border-t border-gray-300 focus:outline-none resize-none h-32 bg-white text-gray-700"
+                        className="w-full p-2 md:p-3 border-t border-gray-300 focus:outline-none resize-none h-24 md:h-32 bg-white text-gray-700 text-sm md:text-base"
                         disabled={isLoading}
                         placeholder="Escribe el contenido de tu plantilla aquí..."
                     />
                 </div>
 
                 {/* Botones de formato */}
-                <div className="flex gap-4 text-gray-600 mt-4">
+                <div className="flex flex-wrap gap-2 md:gap-4 text-gray-600 mt-3 md:mt-4">
                 <button 
-                    className="p-2 px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium"
+                    className="p-1 md:p-2 px-2 md:px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium text-xs md:text-sm"
                     style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
                     disabled={isLoading}
                     onClick={() => setCuerpo(cuerpo + " [nombre]")}
@@ -194,7 +194,7 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                     📝 Nombre
                 </button>
                 <button 
-                    className="p-2 px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium"
+                    className="p-1 md:p-2 px-2 md:px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium text-xs md:text-sm"
                     style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
                     disabled={isLoading}
                     onClick={() => setCuerpo(cuerpo + " [producto]")}
@@ -203,7 +203,7 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                     📦 Producto
                 </button>
                 <button 
-                    className="p-2 px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium"
+                    className="p-1 md:p-2 px-2 md:px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium text-xs md:text-sm"
                     style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
                     disabled={isLoading}
                     onClick={() => setCuerpo(cuerpo + " [emoji]")}
@@ -214,13 +214,13 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
             </div>
                 {/* Botón Guardar (color ajustado) */}
                 <button
-                    className="mt-6 w-full bg-[#A0B1FF] text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#B0BAF5] transition"
+                    className="mt-4 md:mt-6 w-full bg-[#A0B1FF] text-white py-2 md:py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#B0BAF5] transition text-sm md:text-base"
                     onClick={handleSave}
                     disabled={isLoading}
                 >
                     {isLoading ? (
                         <>
-                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin -ml-1 mr-3 h-4 w-4 md:h-5 md:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>

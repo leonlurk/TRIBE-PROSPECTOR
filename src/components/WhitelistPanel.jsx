@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { db } from "../firebaseConfig";
 import { collection, addDoc, getDocs, doc, deleteDoc, query, where } from "firebase/firestore";
 import { FaPlus, FaTrash, FaSearch } from "react-icons/fa";
+import logApiRequest from "../requestLogger"; // Import the logger utility
 
 const WhitelistPanel = ({ user }) => {
     const [whitelists, setWhitelists] = useState([]);
@@ -28,19 +29,59 @@ const WhitelistPanel = ({ user }) => {
 
         try {
             setIsLoading(true);
+            
+            // Log the whitelist fetch attempt
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelists",
+                requestData: { userId: user.uid },
+                userId: user.uid,
+                status: "pending",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "fetch_whitelists"
+                }
+            });
+            
             const whitelistsRef = collection(db, "users", user.uid, "whitelists");
             const whitelistsSnapshot = await getDocs(whitelistsRef);
             const whitelistsList = whitelistsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setWhitelists(whitelistsList);
             
-            // Si hay listas, seleccionar la primera por defecto
+            // If there are lists, select the first one by default
             if (whitelistsList.length > 0 && !selectedWhitelist) {
                 setSelectedWhitelist(whitelistsList[0]);
                 fetchWhitelistUsers(whitelistsList[0].id);
             }
+            
+            // Log the whitelist fetch success
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelists",
+                requestData: { userId: user.uid },
+                userId: user.uid,
+                responseData: { count: whitelistsList.length },
+                status: "success",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "fetch_whitelists",
+                    whitelistCount: whitelistsList.length
+                }
+            });
         } catch (error) {
             console.error("Error al cargar las listas blancas:", error);
             showNotification("Error al cargar las listas", "error");
+            
+            // Log the whitelist fetch error
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelists",
+                requestData: { userId: user.uid },
+                userId: user.uid,
+                status: "error",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "fetch_whitelists",
+                    error: error.message
+                }
+            });
         } finally {
             setIsLoading(false);
         }
@@ -52,13 +93,56 @@ const WhitelistPanel = ({ user }) => {
 
         try {
             setIsLoading(true);
+            
+            // Log the whitelist users fetch attempt
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelist_users",
+                requestData: { whitelistId },
+                userId: user.uid,
+                status: "pending",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "fetch_whitelist_users",
+                    whitelistId
+                }
+            });
+            
             const usersRef = collection(db, "users", user.uid, "whitelists", whitelistId, "users");
             const usersSnapshot = await getDocs(usersRef);
             const usersList = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setWhitelistUsers(usersList);
+            
+            // Log the whitelist users fetch success
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelist_users",
+                requestData: { whitelistId },
+                userId: user.uid,
+                responseData: { count: usersList.length },
+                status: "success",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "fetch_whitelist_users",
+                    whitelistId,
+                    userCount: usersList.length
+                }
+            });
         } catch (error) {
             console.error("Error al cargar usuarios de la lista blanca:", error);
             showNotification("Error al cargar usuarios", "error");
+            
+            // Log the whitelist users fetch error
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelist_users",
+                requestData: { whitelistId },
+                userId: user.uid,
+                status: "error",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "fetch_whitelist_users",
+                    whitelistId,
+                    error: error.message
+                }
+            });
         } finally {
             setIsLoading(false);
         }
@@ -74,6 +158,20 @@ const WhitelistPanel = ({ user }) => {
 
         try {
             setIsLoading(true);
+            
+            // Log the whitelist creation attempt
+            await logApiRequest({
+                endpoint: "internal/create_whitelist",
+                requestData: { name: newWhitelistName.trim() },
+                userId: user.uid,
+                status: "pending",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "create_whitelist",
+                    name: newWhitelistName.trim()
+                }
+            });
+            
             const whitelistsRef = collection(db, "users", user.uid, "whitelists");
             
             // Verificar si ya existe una lista con ese nombre
@@ -82,6 +180,21 @@ const WhitelistPanel = ({ user }) => {
             
             if (!querySnapshot.empty) {
                 showNotification("Ya existe una lista con ese nombre", "warning");
+                
+                // Log the whitelist creation failure - duplicate name
+                await logApiRequest({
+                    endpoint: "internal/create_whitelist",
+                    requestData: { name: newWhitelistName.trim() },
+                    userId: user.uid,
+                    status: "error",
+                    source: "WhitelistPanel",
+                    metadata: {
+                        action: "create_whitelist",
+                        error: "duplicate_name",
+                        name: newWhitelistName.trim()
+                    }
+                });
+                
                 return;
             }
             
@@ -101,9 +214,38 @@ const WhitelistPanel = ({ user }) => {
             setIsCreatingWhitelist(false);
             
             showNotification("Lista creada con éxito", "success");
+            
+            // Log the whitelist creation success
+            await logApiRequest({
+                endpoint: "internal/create_whitelist",
+                requestData: { name: newWhitelistName.trim() },
+                userId: user.uid,
+                responseData: { whitelistId: docRef.id },
+                status: "success",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "create_whitelist",
+                    name: newWhitelistName.trim(),
+                    whitelistId: docRef.id
+                }
+            });
         } catch (error) {
             console.error("Error al crear la lista blanca:", error);
             showNotification("Error al crear la lista", "error");
+            
+            // Log the whitelist creation error
+            await logApiRequest({
+                endpoint: "internal/create_whitelist",
+                requestData: { name: newWhitelistName.trim() },
+                userId: user.uid,
+                status: "error",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "create_whitelist",
+                    error: error.message,
+                    name: newWhitelistName.trim()
+                }
+            });
         } finally {
             setIsLoading(false);
         }
@@ -119,6 +261,19 @@ const WhitelistPanel = ({ user }) => {
 
         try {
             setIsLoading(true);
+            
+            // Log the whitelist deletion attempt
+            await logApiRequest({
+                endpoint: "internal/delete_whitelist",
+                requestData: { whitelistId },
+                userId: user.uid,
+                status: "pending",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "delete_whitelist",
+                    whitelistId
+                }
+            });
             
             // Primero eliminar todos los usuarios de la lista
             const usersRef = collection(db, "users", user.uid, "whitelists", whitelistId, "users");
@@ -148,9 +303,38 @@ const WhitelistPanel = ({ user }) => {
             }
             
             showNotification("Lista eliminada con éxito", "success");
+            
+            // Log the whitelist deletion success
+            await logApiRequest({
+                endpoint: "internal/delete_whitelist",
+                requestData: { whitelistId },
+                userId: user.uid,
+                responseData: { deletedUsersCount: usersSnapshot.docs.length },
+                status: "success",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "delete_whitelist",
+                    whitelistId,
+                    deletedUsersCount: usersSnapshot.docs.length
+                }
+            });
         } catch (error) {
             console.error("Error al eliminar la lista blanca:", error);
             showNotification("Error al eliminar la lista", "error");
+            
+            // Log the whitelist deletion error
+            await logApiRequest({
+                endpoint: "internal/delete_whitelist",
+                requestData: { whitelistId },
+                userId: user.uid,
+                status: "error",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "delete_whitelist",
+                    whitelistId,
+                    error: error.message
+                }
+            });
         } finally {
             setIsLoading(false);
         }
@@ -162,6 +346,24 @@ const WhitelistPanel = ({ user }) => {
 
         try {
             setIsLoading(true);
+            
+            // Log the user deletion attempt
+            await logApiRequest({
+                endpoint: "internal/delete_whitelist_user",
+                requestData: { 
+                    whitelistId: selectedWhitelist.id,
+                    whitelistUserId: userId
+                },
+                userId: user.uid,
+                status: "pending",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "delete_whitelist_user",
+                    whitelistId: selectedWhitelist.id,
+                    whitelistUserId: userId
+                }
+            });
+            
             await deleteDoc(doc(db, "users", user.uid, "whitelists", selectedWhitelist.id, "users", userId));
             
             // Actualizar conteo de usuarios en la lista
@@ -185,9 +387,46 @@ const WhitelistPanel = ({ user }) => {
             });
             
             showNotification("Usuario eliminado de la lista", "success");
+            
+            // Log the user deletion success
+            await logApiRequest({
+                endpoint: "internal/delete_whitelist_user",
+                requestData: { 
+                    whitelistId: selectedWhitelist.id,
+                    whitelistUserId: userId
+                },
+                userId: user.uid,
+                status: "success",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "delete_whitelist_user",
+                    whitelistId: selectedWhitelist.id,
+                    whitelistUserId: userId,
+                    whitelistName: selectedWhitelist.name,
+                    updatedUserCount: (selectedWhitelist.userCount || 0) - 1
+                }
+            });
         } catch (error) {
             console.error("Error al eliminar usuario de la lista blanca:", error);
             showNotification("Error al eliminar usuario", "error");
+            
+            // Log the user deletion error
+            await logApiRequest({
+                endpoint: "internal/delete_whitelist_user",
+                requestData: { 
+                    whitelistId: selectedWhitelist.id,
+                    whitelistUserId: userId
+                },
+                userId: user.uid,
+                status: "error",
+                source: "WhitelistPanel",
+                metadata: {
+                    action: "delete_whitelist_user",
+                    whitelistId: selectedWhitelist.id,
+                    whitelistUserId: userId,
+                    error: error.message
+                }
+            });
         } finally {
             setIsLoading(false);
         }

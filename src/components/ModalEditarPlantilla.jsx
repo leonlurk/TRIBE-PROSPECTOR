@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { useState } from 'react';
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
+import logApiRequest from "../requestLogger"; // Import the logger utility
 
 const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
     const [nombre, setNombre] = useState(template.name || "");
@@ -53,6 +54,33 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
             setIsLoading(true);
             setError("");
             
+            // Log the template update attempt
+            await logApiRequest({
+                endpoint: "internal/update_template",
+                requestData: {
+                    templateId: template.id,
+                    name: nombre.trim(),
+                    platform: plataforma.trim(),
+                    type: tipo,
+                    bodyLength: cuerpo.trim().length
+                },
+                userId: template.userId,
+                status: "pending",
+                source: "ModalEditarPlantilla",
+                metadata: {
+                    action: "update_template",
+                    templateId: template.id,
+                    originalName: template.name,
+                    newName: nombre.trim(),
+                    originalPlatform: template.platform,
+                    newPlatform: plataforma.trim(),
+                    originalType: template.type,
+                    newType: tipo,
+                    originalBodyLength: template.body?.length || 0,
+                    newBodyLength: cuerpo.trim().length
+                }
+            });
+            
             const templateRef = doc(db, "users", template.userId, "templates", template.id);
             await updateDoc(templateRef, {
                 name: nombre.trim(),
@@ -63,6 +91,23 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
             });
     
             setSuccess("Plantilla actualizada con éxito");
+            
+            // Log the template update success
+            await logApiRequest({
+                endpoint: "internal/update_template",
+                requestData: {
+                    templateId: template.id,
+                    name: nombre.trim()
+                },
+                userId: template.userId,
+                status: "success",
+                source: "ModalEditarPlantilla",
+                metadata: {
+                    action: "update_template",
+                    templateId: template.id,
+                    templateName: nombre.trim()
+                }
+            });
             
             // Notificar al componente padre que se ha actualizado la plantilla
             if (onTemplateUpdated) {
@@ -78,6 +123,23 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
             console.error("Error al actualizar la plantilla:", error);
             setError(`Error al actualizar: ${error.message || "Algo salió mal"}`);
             setIsLoading(false);
+            
+            // Log the template update error
+            await logApiRequest({
+                endpoint: "internal/update_template",
+                requestData: {
+                    templateId: template.id,
+                    name: nombre.trim()
+                },
+                userId: template.userId,
+                status: "error",
+                source: "ModalEditarPlantilla",
+                metadata: {
+                    action: "update_template",
+                    templateId: template.id,
+                    error: error.message || "Unknown error"
+                }
+            });
         }
     };
 
@@ -85,6 +147,22 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
     const handlePreview = () => {
         // Aquí podrías implementar una vista previa más detallada si es necesario
         alert(cuerpo);
+        
+        // Log the preview action
+        logApiRequest({
+            endpoint: "internal/preview_template",
+            requestData: {
+                templateId: template.id
+            },
+            userId: template.userId,
+            status: "success",
+            source: "ModalEditarPlantilla",
+            metadata: {
+                action: "preview_template",
+                templateId: template.id,
+                templateName: nombre.trim()
+            }
+        });
     };
     
     return (
@@ -108,7 +186,26 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                 <button
                     className="absolute top-3 right-3 md:top-4 md:right-4 text-gray-600 hover:text-gray-800 transition"
                     style={{ backgroundColor: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
-                    onClick={onClose}
+                    onClick={() => {
+                        // Log the close action
+                        logApiRequest({
+                            endpoint: "internal/close_edit_template",
+                            requestData: {
+                                templateId: template.id
+                            },
+                            userId: template.userId,
+                            status: "success",
+                            source: "ModalEditarPlantilla",
+                            metadata: {
+                                action: "close_edit_template",
+                                templateId: template.id,
+                                templateName: template.name,
+                                wasSaved: success !== ""
+                            }
+                        });
+                        
+                        onClose();
+                    }}
                     disabled={isLoading}
                 >
                     ✕
@@ -188,7 +285,26 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                     className="p-1 md:p-2 px-2 md:px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium text-xs md:text-sm"
                     style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
                     disabled={isLoading}
-                    onClick={() => setCuerpo(cuerpo + " [nombre]")}
+                    onClick={() => {
+                        setCuerpo(cuerpo + " [nombre]");
+                        
+                        // Log the variable insertion
+                        logApiRequest({
+                            endpoint: "internal/insert_template_variable",
+                            requestData: {
+                                templateId: template.id,
+                                variable: "nombre"
+                            },
+                            userId: template.userId,
+                            status: "success",
+                            source: "ModalEditarPlantilla",
+                            metadata: {
+                                action: "insert_template_variable",
+                                templateId: template.id,
+                                variable: "nombre"
+                            }
+                        });
+                    }}
                     title="Insertar variable de nombre"
                 >
                     📝 Nombre
@@ -197,7 +313,26 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                     className="p-1 md:p-2 px-2 md:px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium text-xs md:text-sm"
                     style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
                     disabled={isLoading}
-                    onClick={() => setCuerpo(cuerpo + " [producto]")}
+                    onClick={() => {
+                        setCuerpo(cuerpo + " [producto]");
+                        
+                        // Log the variable insertion
+                        logApiRequest({
+                            endpoint: "internal/insert_template_variable",
+                            requestData: {
+                                templateId: template.id,
+                                variable: "producto"
+                            },
+                            userId: template.userId,
+                            status: "success",
+                            source: "ModalEditarPlantilla",
+                            metadata: {
+                                action: "insert_template_variable",
+                                templateId: template.id,
+                                variable: "producto"
+                            }
+                        });
+                    }}
                     title="Insertar variable de producto"
                 >
                     📦 Producto
@@ -206,7 +341,26 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
                     className="p-1 md:p-2 px-2 md:px-3 flex items-center justify-center bg-[#A0B1FF] hover:bg-blue-700 rounded-full text-white font-medium text-xs md:text-sm"
                     style={{ cursor: isLoading ? 'not-allowed' : 'pointer' }}
                     disabled={isLoading}
-                    onClick={() => setCuerpo(cuerpo + " [emoji]")}
+                    onClick={() => {
+                        setCuerpo(cuerpo + " [emoji]");
+                        
+                        // Log the variable insertion
+                        logApiRequest({
+                            endpoint: "internal/insert_template_variable",
+                            requestData: {
+                                templateId: template.id,
+                                variable: "emoji"
+                            },
+                            userId: template.userId,
+                            status: "success",
+                            source: "ModalEditarPlantilla",
+                            metadata: {
+                                action: "insert_template_variable",
+                                templateId: template.id,
+                                variable: "emoji"
+                            }
+                        });
+                    }}
                     title="Insertar emoji"
                 >
                     😊 Emoji
@@ -236,7 +390,7 @@ const ModalEditarPlantilla = ({ template, onClose, onTemplateUpdated }) => {
 ModalEditarPlantilla.propTypes = {
     template: PropTypes.object.isRequired,
     onClose: PropTypes.func.isRequired,
-    onTemplateUpdated: PropTypes.func, // Prop para notificar actualización
+    onTemplateUpdated: PropTypes.func
 };
 
 export default ModalEditarPlantilla;

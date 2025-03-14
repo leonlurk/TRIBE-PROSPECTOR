@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import Instagram2FAVerification from "./Instagram2FAVerification";
+import logApiRequest from "../requestLogger"; // Import the logger utility
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -60,6 +61,20 @@ const ConnectInstagram = ({
         try {
             setIsSubmitting(true);
             
+            // Log the Instagram connect attempt
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/login",
+                    requestData: { username: email },
+                    userId: user.uid,
+                    status: "pending",
+                    source: "ConnectInstagram",
+                    metadata: {
+                        action: "instagram_login_attempt"
+                    }
+                });
+            }
+            
             // Create FormData for the request
             const formData = new FormData();
             formData.append('username', email);
@@ -96,6 +111,27 @@ const ConnectInstagram = ({
             const data = await response.json();
             console.log("Respuesta de login:", data);
             
+            // Log the Instagram login response
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/login",
+                    requestData: { username: email },
+                    userId: user.uid,
+                    responseData: { 
+                        status: data.status,
+                        username: data.username || email
+                    },
+                    status: data.status === "success" ? "success" : "completed",
+                    source: "ConnectInstagram",
+                    metadata: {
+                        action: "instagram_login_response",
+                        loginStatus: data.status,
+                        needs2FA: data.status === "needs_verification",
+                        needsChallenge: data.status === "challenge_required" || data.error_type === "challenge_required"
+                    }
+                });
+            }
+            
             // Handle different response scenarios
             if (data.status === 'success' && data.token) {
                 // Login successful
@@ -117,6 +153,21 @@ const ConnectInstagram = ({
                     await onConnect(email, password);
                 } catch (err) {
                     console.error("Error en onConnect:", err);
+                    
+                    // Log the error
+                    if (user) {
+                        await logApiRequest({
+                            endpoint: "/login",
+                            requestData: { username: email },
+                            userId: user.uid,
+                            status: "error",
+                            source: "ConnectInstagram",
+                            metadata: {
+                                error: err.message,
+                                action: "instagram_login_callback"
+                            }
+                        });
+                    }
                 }
             } 
             else if (data.status === 'needs_verification') {
@@ -160,6 +211,21 @@ const ConnectInstagram = ({
             console.error("Error during connection:", error);
             setLocalErrorMessage("Error de red o conexión con la API.");
             setHasLoginError(true);
+            
+            // Log the error
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/login",
+                    requestData: { username: email },
+                    userId: user.uid,
+                    status: "error",
+                    source: "ConnectInstagram",
+                    metadata: {
+                        error: error.message,
+                        action: "instagram_login_error"
+                    }
+                });
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -168,10 +234,56 @@ const ConnectInstagram = ({
     // Handle 2FA verification
     const handle2FAVerification = async (username, verificationCode) => {
         try {
+            // Log the 2FA verification attempt
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/verify_2fa",
+                    requestData: { username },
+                    userId: user.uid,
+                    status: "pending",
+                    source: "ConnectInstagram",
+                    metadata: {
+                        action: "instagram_2fa_verification"
+                    }
+                });
+            }
+            
             const result = await onVerify2FA(username, verificationCode);
+            
+            // Log the 2FA verification result
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/verify_2fa",
+                    requestData: { username },
+                    userId: user.uid,
+                    responseData: { status: result?.status || "unknown" },
+                    status: result?.status === "success" ? "success" : "completed",
+                    source: "ConnectInstagram",
+                    metadata: {
+                        action: "instagram_2fa_verification"
+                    }
+                });
+            }
+            
             return result;
         } catch (error) {
             console.error("Error during 2FA verification:", error);
+            
+            // Log the 2FA verification error
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/verify_2fa",
+                    requestData: { username },
+                    userId: user.uid,
+                    status: "error",
+                    source: "ConnectInstagram",
+                    metadata: {
+                        error: error.message,
+                        action: "instagram_2fa_verification"
+                    }
+                });
+            }
+            
             throw error;
         }
     };
@@ -196,6 +308,7 @@ const ConnectInstagram = ({
                                 onCancel={handleCancel2FA}
                                 errorMessage={errorMessage}
                                 deviceId={deviceId}
+                                user={user}
                             />
                         ) : showRecoveryInfo ? (
                             <>

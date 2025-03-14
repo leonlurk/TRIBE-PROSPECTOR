@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import logApiRequest from '../requestLogger'; // Import the logger utility
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -8,7 +9,8 @@ const Instagram2FAVerification = ({
     onVerify2FA, 
     onCancel, 
     errorMessage,
-    deviceId
+    deviceId,
+    user // Add user prop to access user ID
 }) => {
     const [verificationCode, setVerificationCode] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,24 +51,43 @@ const Instagram2FAVerification = ({
         return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     };
 
-    // Función para modo desarrollo - simula un proceso exitoso
-    const simulateSuccessfulVerification = () => {
+    // Function for development mode - simulates a successful verification
+    const simulateSuccessfulVerification = async () => {
         setLocalError("Modo desarrollo: Simulando verificación exitosa...");
         
-        // Generar token simulado
+        // Log the simulated verification
+        if (user) {
+            await logApiRequest({
+                endpoint: "/verify_2fa",
+                requestData: {
+                    username,
+                    device_id: deviceId,
+                    mode: "development"
+                },
+                userId: user.uid,
+                status: "simulated",
+                source: "Instagram2FAVerification",
+                metadata: {
+                    action: "instagram_2fa_simulation",
+                    environment: "development"
+                }
+            });
+        }
+        
+        // Generate simulated token
         const simulatedToken = `IGT-${Math.random().toString(36).substring(2, 15)}-${Date.now()}`;
         localStorage.setItem("instagram_bot_token", simulatedToken);
         
-        // Simular cookies de sesión
+        // Simulate session cookies
         const simulatedCookies = `sessionid=${Date.now()}; csrftoken=${Math.random().toString(36).substring(2, 15)}`;
         localStorage.setItem("instagram_cookies", JSON.stringify(simulatedCookies));
         
-        // Simular device ID si no existe
+        // Simulate device ID if it doesn't exist
         if (!localStorage.getItem("instagram_device_id")) {
             localStorage.setItem("instagram_device_id", `dev_${Math.random().toString(36).substring(2, 10)}`);
         }
         
-        // Notificar al usuario y recargar
+        // Notify user and reload
         setTimeout(() => {
             alert("¡Verificación exitosa en modo desarrollo! La aplicación se recargará.");
             onCancel();
@@ -84,13 +105,30 @@ const Instagram2FAVerification = ({
             setIsSubmitting(true);
             setLocalError('');
 
-            // Si estamos en localhost, simplemente simular éxito
+            // If we're on localhost, just simulate success
             if (isLocalhost) {
-                simulateSuccessfulVerification();
+                await simulateSuccessfulVerification();
                 return;
             }
 
-            // Implementación para producción
+            // Log the verification attempt
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/verify_2fa",
+                    requestData: {
+                        username,
+                        device_id: deviceId
+                    },
+                    userId: user.uid,
+                    status: "pending",
+                    source: "Instagram2FAVerification",
+                    metadata: {
+                        action: "instagram_2fa_verification"
+                    }
+                });
+            }
+
+            // Implementation for production
             const formData = new FormData();
             formData.append("username", username);
             formData.append("verification_code", verificationCode);
@@ -126,6 +164,27 @@ const Instagram2FAVerification = ({
             const data = await response.json();
             console.log("Respuesta de verificación 2FA:", data);
 
+            // Log the verification response
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/verify_2fa",
+                    requestData: {
+                        username,
+                        device_id: deviceId
+                    },
+                    userId: user.uid,
+                    responseData: { 
+                        status: data.status,
+                        username: data.username || username
+                    },
+                    status: data.status === "success" ? "success" : "completed",
+                    source: "Instagram2FAVerification",
+                    metadata: {
+                        action: "instagram_2fa_verification"
+                    }
+                });
+            }
+
             if (data.status === "success" && data.token) {
                 // Store authentication data
                 localStorage.setItem("instagram_bot_token", data.token);
@@ -143,6 +202,25 @@ const Instagram2FAVerification = ({
                     await onVerify2FA(username, verificationCode);
                 } catch (callbackError) {
                     console.error("Error al llamar onVerify2FA:", callbackError);
+                    
+                    // Log the callback error
+                    if (user) {
+                        await logApiRequest({
+                            endpoint: "/verify_2fa",
+                            requestData: {
+                                username,
+                                device_id: deviceId
+                            },
+                            userId: user.uid,
+                            status: "error",
+                            source: "Instagram2FAVerification",
+                            metadata: {
+                                error: callbackError.message,
+                                action: "instagram_2fa_callback"
+                            }
+                        });
+                    }
+                    
                     // Continue with our own handling
                 }
                 
@@ -159,9 +237,27 @@ const Instagram2FAVerification = ({
             console.error('2FA Verification error:', error);
             setLocalError(`Error durante la verificación: ${error.message}`);
             
+            // Log the error
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/verify_2fa",
+                    requestData: {
+                        username,
+                        device_id: deviceId
+                    },
+                    userId: user.uid,
+                    status: "error",
+                    source: "Instagram2FAVerification",
+                    metadata: {
+                        error: error.message,
+                        action: "instagram_2fa_verification" 
+                    }
+                });
+            }
+            
             // In case of error in production, also offer simulated mode
             if (confirm("Error al conectar con el servidor. ¿Deseas simular una verificación exitosa para continuar con el desarrollo?")) {
-                simulateSuccessfulVerification();
+                await simulateSuccessfulVerification();
             }
         } finally {
             if (!isLocalhost) {
@@ -176,12 +272,29 @@ const Instagram2FAVerification = ({
             setIsSubmitting(true);
             setLocalError('');
             
-            // Si estamos en localhost, simplemente reiniciar el temporizador
+            // If we're on localhost, just reset the timer
             if (isLocalhost) {
                 setRemainingTime(120);
                 setLocalError("Modo desarrollo: Nuevo código simulado");
                 setIsSubmitting(false);
                 return true;
+            }
+            
+            // Log the request for a new code
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/request_new_2fa_code",
+                    requestData: {
+                        username,
+                        device_id: deviceId
+                    },
+                    userId: user.uid,
+                    status: "pending",
+                    source: "Instagram2FAVerification",
+                    metadata: {
+                        action: "instagram_request_new_2fa_code"
+                    }
+                });
             }
             
             const formData = new FormData();
@@ -201,7 +314,7 @@ const Instagram2FAVerification = ({
                 headers['X-IG-Android-ID'] = deviceId;
             }
             
-            // This endpoint is not in the provided API docs, you may need to adjust
+            // This endpoint may need to be adjusted based on the actual API
             const response = await fetch(`${API_BASE_URL}/request_new_2fa_code`, {
                 method: 'POST',
                 headers: headers,
@@ -209,6 +322,24 @@ const Instagram2FAVerification = ({
             });
             
             const data = await response.json();
+            
+            // Log the response
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/request_new_2fa_code",
+                    requestData: {
+                        username,
+                        device_id: deviceId
+                    },
+                    userId: user.uid,
+                    responseData: { status: data.status },
+                    status: data.status === "success" ? "success" : "completed",
+                    source: "Instagram2FAVerification",
+                    metadata: {
+                        action: "instagram_request_new_2fa_code"
+                    }
+                });
+            }
             
             if (data.status === 'success') {
                 // Reset the timer
@@ -222,7 +353,25 @@ const Instagram2FAVerification = ({
             console.error('Error requesting new code:', error);
             setLocalError("Error al solicitar un nuevo código");
             
-            // En entorno de desarrollo, simular éxito
+            // Log the error
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/request_new_2fa_code",
+                    requestData: {
+                        username,
+                        device_id: deviceId
+                    },
+                    userId: user.uid,
+                    status: "error",
+                    source: "Instagram2FAVerification",
+                    metadata: {
+                        error: error.message,
+                        action: "instagram_request_new_2fa_code"
+                    }
+                });
+            }
+            
+            // For development environment, simulate success
             if (isLocalhost) {
                 setRemainingTime(120);
                 setLocalError("Modo desarrollo: Nuevo código simulado");
@@ -352,13 +501,15 @@ Instagram2FAVerification.propTypes = {
     onVerify2FA: PropTypes.func,
     onCancel: PropTypes.func.isRequired,
     errorMessage: PropTypes.string,
-    deviceId: PropTypes.string
+    deviceId: PropTypes.string,
+    user: PropTypes.object
 };
 
 Instagram2FAVerification.defaultProps = {
     errorMessage: '',
     deviceId: null,
-    onVerify2FA: () => {}
+    onVerify2FA: () => {},
+    user: null
 };
 
 export default Instagram2FAVerification;

@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import PropTypes from 'prop-types';
 import { db } from "../firebaseConfig";
 import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase/firestore";
-import SendMediaComponent from "./SendMediaComponent"; // Importamos el nuevo componente
+import SendMediaComponent from "./SendMediaComponent"; 
+import logApiRequest from "../requestLogger"; // Import the logger utility
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -19,7 +20,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [filteredTemplates, setFilteredTemplates] = useState([]);
     const [templateSearchQuery, setTemplateSearchQuery] = useState("");
-    const [activeTab, setActiveTab] = useState(initialTab || "message"); // Nuevo estado para controlar las pestañas
+    const [activeTab, setActiveTab] = useState(initialTab || "message");
 
     // Función para mostrar notificaciones
     const showNotification = (message, type = "info") => {
@@ -39,13 +40,52 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         if (!user || !user.uid) return;
 
         try {
+            // Log the fetch attempt
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelists",
+                requestData: { userId: user.uid },
+                userId: user.uid,
+                status: "pending",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                    action: "fetch_whitelists"
+                }
+            });
+            
             const whitelistsRef = collection(db, "users", user.uid, "whitelists");
             const whitelistsSnapshot = await getDocs(whitelistsRef);
             const whitelistsList = whitelistsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setWhitelists(whitelistsList);
+            
+            // Log the fetch success
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelists",
+                requestData: { userId: user.uid },
+                userId: user.uid,
+                responseData: { count: whitelistsList.length },
+                status: "success",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                    action: "fetch_whitelists",
+                    whitelistCount: whitelistsList.length
+                }
+            });
         } catch (error) {
             console.error("Error al cargar las listas blancas:", error);
             showNotification("Error al cargar las listas para guardar", "error");
+            
+            // Log the fetch error
+            await logApiRequest({
+                endpoint: "internal/fetch_whitelists",
+                requestData: { userId: user.uid },
+                userId: user.uid,
+                status: "error",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                    action: "fetch_whitelists",
+                    error: error.message
+                }
+            });
         }
     };
 
@@ -71,21 +111,75 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         );
         
         setFilteredTemplates(filtered);
+        
+        // Log the search action
+        if (user) {
+            logApiRequest({
+                endpoint: "internal/search_templates",
+                requestData: { searchQuery: searchValue },
+                userId: user.uid,
+                status: "success",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                    action: "search_templates",
+                    searchQuery: searchValue,
+                    resultsCount: filtered.length,
+                    totalTemplates: templates.length
+                }
+            });
+        }
     };
 
     // Función para seleccionar una plantilla y usar su contenido
-    const selectAndUseTemplate = (template) => {
+    const selectAndUseTemplate = async (template) => {
         setMessage(template.body);
         setSelectedTemplate(template);
         setShowTemplateSelector(false);
         showNotification(`Plantilla "${template.name}" seleccionada`, "success");
+        
+        // Log template selection
+        if (user) {
+            await logApiRequest({
+                endpoint: "internal/use_template",
+                requestData: { templateId: template.id },
+                userId: user.uid,
+                status: "success",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                    action: "use_template",
+                    templateName: template.name,
+                    templateId: template.id,
+                    templatePlatform: template.platform
+                }
+            });
+        }
     };
 
     const getLikes = async () => {
+        if (!postLink.trim()) {
+            showNotification("Debes introducir un enlace a una publicación", "warning");
+            return;
+        }
+        
         setLoading(true);
         setUsersList([]);
     
         try {
+            // Log the get likes attempt
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/obtener_likes",
+                    requestData: { link: postLink },
+                    userId: user.uid,
+                    status: "pending",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "get_likes",
+                        postLink: postLink
+                    }
+                });
+            }
+            
             const formData = new FormData();
             formData.append("link", postLink);
     
@@ -112,11 +206,48 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
             } catch (jsonError) {
                 console.error("No se pudo parsear la respuesta como JSON:", jsonError);
                 showNotification("Error inesperado: la respuesta del servidor no es válida.", "error");
+                
+                // Log the parsing error
+                if (user) {
+                    await logApiRequest({
+                        endpoint: "/obtener_likes",
+                        requestData: { link: postLink },
+                        userId: user.uid,
+                        status: "error",
+                        source: "NuevaSolicitudPanel",
+                        metadata: {
+                            action: "get_likes",
+                            error: "JSON parsing error",
+                            postLink: postLink
+                        }
+                    });
+                }
+                
                 setLoading(false);
                 return;
             }
     
             console.log("Respuesta completa:", data);
+            
+            // Log the response
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/obtener_likes",
+                    requestData: { link: postLink },
+                    userId: user.uid,
+                    responseData: { 
+                        status: data.status,
+                        likesCount: data.likes?.length || 0
+                    },
+                    status: data.status === "success" ? "success" : "completed",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "get_likes",
+                        postLink: postLink,
+                        usersCount: data.likes?.length || 0
+                    }
+                });
+            }
     
             if (data.status === "success") {
                 setUsersList(data.likes);
@@ -127,6 +258,22 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         } catch (error) {
             console.error("Ocurrió un error al conectar con la API:", error);
             showNotification("Error de conexión o problema de red.", "error");
+            
+            // Log the error
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/obtener_likes",
+                    requestData: { link: postLink },
+                    userId: user.uid,
+                    status: "error",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "get_likes",
+                        error: error.message,
+                        postLink: postLink
+                    }
+                });
+            }
         } finally {
             setLoading(false);
         }
@@ -140,6 +287,24 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         
         setLoading(true);
         try {
+            // Log the follow users attempt
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/seguir_usuarios",
+                    requestData: { 
+                        usuarios_count: usersList.length 
+                    },
+                    userId: user.uid,
+                    status: "pending",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "follow_users",
+                        usersCount: usersList.length,
+                        postLink: postLink
+                    }
+                });
+            }
+            
             const response = await fetch(`${API_BASE_URL}/seguir_usuarios`, {
                 method: "POST",
                 headers: {
@@ -156,11 +321,56 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
             }
 
             const data = await response.json();
+            
+            // Log the response
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/seguir_usuarios",
+                    requestData: { 
+                        usuarios_count: usersList.length 
+                    },
+                    userId: user.uid,
+                    responseData: { 
+                        status: data.status,
+                        followedCount: data.followed_count || 0,
+                        skippedCount: data.skipped_count || 0
+                    },
+                    status: data.status === "success" ? "success" : "completed",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "follow_users",
+                        usersCount: usersList.length,
+                        postLink: postLink,
+                        followedCount: data.followed_count || 0,
+                        skippedCount: data.skipped_count || 0
+                    }
+                });
+            }
+            
             showNotification("Seguimiento completado exitosamente", "success");
             console.log(data);
         } catch (error) {
             showNotification("Error al seguir usuarios", "error");
             console.error("Ocurrió un error:", error);
+            
+            // Log the error
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/seguir_usuarios",
+                    requestData: { 
+                        usuarios_count: usersList.length 
+                    },
+                    userId: user.uid,
+                    status: "error",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "follow_users",
+                        error: error.message,
+                        usersCount: usersList.length,
+                        postLink: postLink
+                    }
+                });
+            }
         } finally {
             setLoading(false);
         }
@@ -179,6 +389,29 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         
         setLoading(true);
         try {
+            // Log the send messages attempt
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/enviar_mensajes_multiple",
+                    requestData: { 
+                        usuarios_count: usersList.length,
+                        mensaje_length: message.length,
+                        template_id: selectedTemplate?.id
+                    },
+                    userId: user.uid,
+                    status: "pending",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "send_messages",
+                        usersCount: usersList.length,
+                        messageLength: message.length,
+                        templateId: selectedTemplate?.id,
+                        templateName: selectedTemplate?.name,
+                        postLink: postLink
+                    }
+                });
+            }
+            
             const response = await fetch(`${API_BASE_URL}/enviar_mensajes_multiple`, {
                 method: "POST",
                 headers: {
@@ -196,11 +429,66 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
             }
 
             const data = await response.json();
+            
+            // Log the response
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/enviar_mensajes_multiple",
+                    requestData: { 
+                        usuarios_count: usersList.length,
+                        mensaje_length: message.length,
+                        template_id: selectedTemplate?.id
+                    },
+                    userId: user.uid,
+                    responseData: { 
+                        status: data.status,
+                        sentCount: data.sent_count || 0,
+                        failedCount: data.failed_count || 0
+                    },
+                    status: data.status === "success" ? "success" : "completed",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "send_messages",
+                        usersCount: usersList.length,
+                        messageLength: message.length,
+                        templateId: selectedTemplate?.id,
+                        templateName: selectedTemplate?.name,
+                        postLink: postLink,
+                        sentCount: data.sent_count || 0,
+                        failedCount: data.failed_count || 0
+                    }
+                });
+            }
+            
             showNotification("Mensajes enviados exitosamente", "success");
             console.log(data);
         } catch (error) {
             showNotification("Error al enviar mensajes", "error");
             console.error("Ocurrió un error:", error);
+            
+            // Log the error
+            if (user) {
+                await logApiRequest({
+                    endpoint: "/enviar_mensajes_multiple",
+                    requestData: { 
+                        usuarios_count: usersList.length,
+                        mensaje_length: message.length,
+                        template_id: selectedTemplate?.id
+                    },
+                    userId: user.uid,
+                    status: "error",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "send_messages",
+                        error: error.message,
+                        usersCount: usersList.length,
+                        messageLength: message.length,
+                        templateId: selectedTemplate?.id,
+                        templateName: selectedTemplate?.name,
+                        postLink: postLink
+                    }
+                });
+            }
         } finally {
             setLoading(false);
         }
@@ -225,6 +513,24 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         
         setLoading(true);
         try {
+            // Log the save to whitelist attempt
+            await logApiRequest({
+                endpoint: "internal/save_to_whitelist",
+                requestData: { 
+                    whitelistId: selectedWhitelist,
+                    usersCount: usersList.length
+                },
+                userId: user.uid,
+                status: "pending",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                    action: "save_to_whitelist",
+                    whitelistId: selectedWhitelist,
+                    usersCount: usersList.length,
+                    postLink: postLink
+                }
+            });
+            
             // Referencia a la colección de usuarios de la lista blanca
             const usersRef = collection(db, "users", user.uid, "whitelists", selectedWhitelist, "users");
             
@@ -237,6 +543,28 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
             
             if (newUsers.length === 0) {
                 showNotification("Todos los usuarios ya están en la lista", "info");
+                
+                // Log the all duplicates case
+                await logApiRequest({
+                    endpoint: "internal/save_to_whitelist",
+                    requestData: { 
+                        whitelistId: selectedWhitelist,
+                        usersCount: usersList.length
+                    },
+                    userId: user.uid,
+                    status: "completed",
+                    source: "NuevaSolicitudPanel",
+                    metadata: {
+                        action: "save_to_whitelist",
+                        whitelistId: selectedWhitelist,
+                        usersCount: usersList.length,
+                        postLink: postLink,
+                        result: "all_duplicates",
+                        duplicateCount: usersList.length,
+                        addedCount: 0
+                    }
+                });
+                
                 setLoading(false);
                 return;
             }
@@ -259,12 +587,52 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 userCount: increment(newUsers.length)
             });
             
+            // Log the save to whitelist success
+            await logApiRequest({
+                endpoint: "internal/save_to_whitelist",
+                requestData: { 
+                    whitelistId: selectedWhitelist,
+                    usersCount: usersList.length
+                },
+                userId: user.uid,
+                status: "success",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                    action: "save_to_whitelist",
+                    whitelistId: selectedWhitelist,
+                    usersCount: usersList.length,
+                    postLink: postLink,
+                    result: "success",
+                    addedCount: newUsers.length,
+                    duplicateCount: usersList.length - newUsers.length
+                }
+            });
+            
             showNotification(`${newUsers.length} usuarios guardados en la lista`, "success");
             setShowSaveToWhitelist(false);
             setSelectedWhitelist("");
         } catch (error) {
             console.error("Error al guardar usuarios:", error);
             showNotification("Error al guardar usuarios", "error");
+            
+            // Log the save to whitelist error
+            await logApiRequest({
+                endpoint: "internal/save_to_whitelist",
+                requestData: { 
+                    whitelistId: selectedWhitelist,
+                    usersCount: usersList.length
+                },
+                userId: user.uid,
+                status: "error",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                    action: "save_to_whitelist",
+                    whitelistId: selectedWhitelist,
+                    usersCount: usersList.length,
+                    postLink: postLink,
+                    error: error.message
+                }
+            });
         } finally {
             setLoading(false);
         }
@@ -330,6 +698,24 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                 onClick={() => {
                                     fetchWhitelists();
                                     setShowSaveToWhitelist(true);
+                                    
+                                    // Log the open whitelist panel action
+                                    if (user) {
+                                        logApiRequest({
+                                            endpoint: "internal/open_save_to_whitelist",
+                                            requestData: { 
+                                                usersCount: usersList.length 
+                                            },
+                                            userId: user.uid,
+                                            status: "success",
+                                            source: "NuevaSolicitudPanel",
+                                            metadata: {
+                                                action: "open_save_to_whitelist_panel",
+                                                usersCount: usersList.length,
+                                                postLink: postLink
+                                            }
+                                        });
+                                    }
                                 }}
                                 className="text-[#5468FF] hover:underline"
                                 disabled={loading}
@@ -383,7 +769,25 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                             ? 'border-[#5468FF] text-[#5468FF]' 
                                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                     }`}
-                                    onClick={() => setActiveTab('message')}
+                                    onClick={() => {
+                                        setActiveTab('message');
+                                        
+                                        // Log the tab change
+                                        if (user) {
+                                            logApiRequest({
+                                                endpoint: "internal/switch_tab",
+                                                requestData: { tab: "message" },
+                                                userId: user.uid,
+                                                status: "success",
+                                                source: "NuevaSolicitudPanel",
+                                                metadata: {
+                                                    action: "switch_tab",
+                                                    previousTab: activeTab,
+                                                    newTab: "message"
+                                                }
+                                            });
+                                        }
+                                    }}
                                     disabled={loading}
                                 >
                                     Enviar Mensaje
@@ -396,7 +800,25 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                             ? 'border-[#5468FF] text-[#5468FF]' 
                                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                     }`}
-                                    onClick={() => setActiveTab('media')}
+                                    onClick={() => {
+                                        setActiveTab('media');
+                                        
+                                        // Log the tab change
+                                        if (user) {
+                                            logApiRequest({
+                                                endpoint: "internal/switch_tab",
+                                                requestData: { tab: "media" },
+                                                userId: user.uid,
+                                                status: "success",
+                                                source: "NuevaSolicitudPanel",
+                                                metadata: {
+                                                    action: "switch_tab",
+                                                    previousTab: activeTab,
+                                                    newTab: "media"
+                                                }
+                                            });
+                                        }
+                                    }}
                                     disabled={loading}
                                 >
                                     Enviar Media
@@ -427,7 +849,24 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                         </div>
                                     )}
                                     <button 
-                                        onClick={() => setShowTemplateSelector(true)}
+                                        onClick={() => {
+                                            setShowTemplateSelector(true);
+                                            
+                                            // Log the template selector open action
+                                            if (user) {
+                                                logApiRequest({
+                                                    endpoint: "internal/open_template_selector",
+                                                    requestData: {},
+                                                    userId: user.uid,
+                                                    status: "success",
+                                                    source: "NuevaSolicitudPanel",
+                                                    metadata: {
+                                                        action: "open_template_selector",
+                                                        templatesCount: templates.length
+                                                    }
+                                                });
+                                            }
+                                        }}
                                         className="ml-auto px-4 py-2 bg-[#8998F1] text-white rounded-lg flex items-center gap-2"
                                         disabled={loading}
                                     >
@@ -467,6 +906,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                             showNotification={showNotification}
                             loading={loading}
                             setLoading={setLoading}
+                            user={user} // Pass user to the component
                         />
                     )}
                 </>
@@ -485,6 +925,23 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                     onClick={() => {
                                         setShowSaveToWhitelist(false);
                                         // Redireccionar a la sección de seguimiento
+                                        
+                                        // Log the redirect action
+                                        if (user) {
+                                            logApiRequest({
+                                                endpoint: "internal/close_save_to_whitelist",
+                                                requestData: { 
+                                                    reason: "no_whitelists" 
+                                                },
+                                                userId: user.uid,
+                                                status: "success",
+                                                source: "NuevaSolicitudPanel",
+                                                metadata: {
+                                                    action: "close_save_to_whitelist_panel",
+                                                    reason: "no_whitelists"
+                                                }
+                                            });
+                                        }
                                     }}
                                     className="px-4 py-2 bg-[#5468FF] text-white rounded-md"
                                 >
@@ -498,7 +955,29 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                 </p>
                                 <select
                                     value={selectedWhitelist}
-                                    onChange={(e) => setSelectedWhitelist(e.target.value)}
+                                    onChange={(e) => {
+                                        setSelectedWhitelist(e.target.value);
+                                        
+                                        // Log the whitelist selection
+                                        if (user && e.target.value) {
+                                            const selectedList = whitelists.find(list => list.id === e.target.value);
+                                            logApiRequest({
+                                                endpoint: "internal/select_whitelist",
+                                                requestData: { 
+                                                    whitelistId: e.target.value 
+                                                },
+                                                userId: user.uid,
+                                                status: "success",
+                                                source: "NuevaSolicitudPanel",
+                                                metadata: {
+                                                    action: "select_whitelist",
+                                                    whitelistId: e.target.value,
+                                                    whitelistName: selectedList?.name,
+                                                    currentUserCount: selectedList?.userCount || 0
+                                                }
+                                            });
+                                        }
+                                    }}
                                     className="w-full p-2 border border-gray-300 rounded mb-4"
                                 >
                                     <option value="">Seleccionar una lista...</option>
@@ -517,7 +996,26 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                         {loading ? "Guardando..." : "Guardar Usuarios"}
                                     </button>
                                     <button
-                                        onClick={() => setShowSaveToWhitelist(false)}
+                                        onClick={() => {
+                                            setShowSaveToWhitelist(false);
+                                            
+                                            // Log the close action
+                                            if (user) {
+                                                logApiRequest({
+                                                    endpoint: "internal/close_save_to_whitelist",
+                                                    requestData: { 
+                                                        reason: "user_cancelled" 
+                                                    },
+                                                    userId: user.uid,
+                                                    status: "success",
+                                                    source: "NuevaSolicitudPanel",
+                                                    metadata: {
+                                                        action: "close_save_to_whitelist_panel",
+                                                        reason: "user_cancelled"
+                                                    }
+                                                });
+                                            }
+                                        }}
                                         className="flex-1 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300 transition"
                                     >
                                         Cancelar
@@ -539,7 +1037,26 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                             <div className="text-center py-4">
                                 <p className="text-gray-600 mb-3">No tienes plantillas creadas.</p>
                                 <button
-                                    onClick={() => setShowTemplateSelector(false)}
+                                    onClick={() => {
+                                        setShowTemplateSelector(false);
+                                        
+                                        // Log the close action
+                                        if (user) {
+                                            logApiRequest({
+                                                endpoint: "internal/close_template_selector",
+                                                requestData: { 
+                                                    reason: "no_templates" 
+                                                },
+                                                userId: user.uid,
+                                                status: "success",
+                                                source: "NuevaSolicitudPanel",
+                                                metadata: {
+                                                    action: "close_template_selector",
+                                                    reason: "no_templates"
+                                                }
+                                            });
+                                        }
+                                    }}
                                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
                                 >
                                     Cerrar
@@ -590,7 +1107,26 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                 
                                 <div className="flex justify-end">
                                     <button
-                                        onClick={() => setShowTemplateSelector(false)}
+                                        onClick={() => {
+                                            setShowTemplateSelector(false);
+                                            
+                                            // Log the close action
+                                            if (user) {
+                                                logApiRequest({
+                                                    endpoint: "internal/close_template_selector",
+                                                    requestData: { 
+                                                        reason: "user_cancelled" 
+                                                    },
+                                                    userId: user.uid,
+                                                    status: "success",
+                                                    source: "NuevaSolicitudPanel",
+                                                    metadata: {
+                                                        action: "close_template_selector",
+                                                        reason: "user_cancelled"
+                                                    }
+                                                });
+                                            }
+                                        }}
                                         className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition"
                                     >
                                         Cancelar
@@ -609,7 +1145,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
 NuevaSolicitudPanel.propTypes = {
     instagramToken: PropTypes.string.isRequired,
     user: PropTypes.object,
-    templates: PropTypes.array, // Nuevo prop para recibir las plantillas
+    templates: PropTypes.array,
     initialTab: PropTypes.string
 };
 

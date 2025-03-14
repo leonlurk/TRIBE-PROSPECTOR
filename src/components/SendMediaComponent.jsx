@@ -1,9 +1,10 @@
 import { useState } from "react";
 import PropTypes from 'prop-types';
+import logApiRequest from '../requestLogger'; // Import the logger utility
 
 const API_BASE_URL = "https://alets.com.ar";
 
-const SendMediaComponent = ({ instagramToken, usersList, showNotification, loading, setLoading }) => {
+const SendMediaComponent = ({ instagramToken, usersList, showNotification, loading, setLoading, user }) => {
     const [mediaFile, setMediaFile] = useState(null);
     const [mediaType, setMediaType] = useState("photo");
     const [mediaMessage, setMediaMessage] = useState("");
@@ -28,11 +29,56 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
             } else if (file.type.startsWith('audio/')) {
                 setMediaType('voice');
             }
+            
+            // Log the file selection
+            if (user && user.uid) {
+                logApiRequest({
+                    endpoint: "internal/media_file_selected",
+                    requestData: { 
+                        fileType: file.type,
+                        fileSize: file.size,
+                        fileName: file.name
+                    },
+                    userId: user.uid,
+                    status: "success",
+                    source: "SendMediaComponent",
+                    metadata: {
+                        action: "select_media_file",
+                        fileType: file.type,
+                        mediaType: file.type.startsWith('image/') ? 'photo' : 
+                                file.type.startsWith('video/') ? 'video' : 'voice',
+                        fileSize: file.size,
+                        fileName: file.name
+                    }
+                });
+            }
         }
     };
 
     // Limpiar la selección de archivo
     const clearFileSelection = () => {
+        // Log the file removal if a file exists
+        if (mediaFile && user && user.uid) {
+            logApiRequest({
+                endpoint: "internal/media_file_removed",
+                requestData: { 
+                    fileType: mediaFile.type,
+                    fileSize: mediaFile.size,
+                    fileName: mediaFile.name
+                },
+                userId: user.uid,
+                status: "success",
+                source: "SendMediaComponent",
+                metadata: {
+                    action: "remove_media_file",
+                    fileType: mediaFile.type,
+                    mediaType: mediaType,
+                    fileSize: mediaFile.size,
+                    fileName: mediaFile.name
+                }
+            });
+        }
+        
         setMediaFile(null);
         if (previewUrl) {
             URL.revokeObjectURL(previewUrl);
@@ -55,6 +101,34 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
         setLoading(true);
         
         try {
+            // Log the send media request
+            if (user && user.uid) {
+                await logApiRequest({
+                    endpoint: "/enviar_media",
+                    requestData: {
+                        usuarios_count: usersList.length,
+                        media_type: mediaType,
+                        file_name: mediaFile.name,
+                        file_type: mediaFile.type,
+                        file_size: mediaFile.size,
+                        skip_existing: skipExisting,
+                        has_message: !!mediaMessage.trim()
+                    },
+                    userId: user.uid,
+                    status: "pending",
+                    source: "SendMediaComponent",
+                    metadata: {
+                        action: "send_media",
+                        userCount: usersList.length,
+                        mediaType: mediaType,
+                        fileSize: mediaFile.size,
+                        fileName: mediaFile.name,
+                        hasMessage: !!mediaMessage.trim(),
+                        skipExisting: skipExisting
+                    }
+                });
+            }
+            
             // Crear FormData para enviar el archivo
             const formData = new FormData();
             formData.append("usuarios", usersList.join(","));
@@ -73,9 +147,7 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                 headers: {
                     token: instagramToken
                 },
-                body: formData,
-                // Aumentar timeout para archivos grandes
-                timeout: 120000 // 2 minutos
+                body: formData
             });
 
             if (!response.ok) {
@@ -83,6 +155,43 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
             }
 
             const data = await response.json();
+            
+            // Log the send media response
+            if (user && user.uid) {
+                await logApiRequest({
+                    endpoint: "/enviar_media",
+                    requestData: {
+                        usuarios_count: usersList.length,
+                        media_type: mediaType,
+                        file_name: mediaFile.name,
+                        file_type: mediaFile.type,
+                        file_size: mediaFile.size,
+                        skip_existing: skipExisting,
+                        has_message: !!mediaMessage.trim()
+                    },
+                    userId: user.uid,
+                    responseData: { 
+                        status: data.status,
+                        sent_count: data.sent_count || 0,
+                        failed_count: data.failed_count || 0,
+                        skipped_count: data.skipped_count || 0
+                    },
+                    status: data.status === "success" ? "success" : "completed",
+                    source: "SendMediaComponent",
+                    metadata: {
+                        action: "send_media",
+                        userCount: usersList.length,
+                        mediaType: mediaType,
+                        fileSize: mediaFile.size,
+                        fileName: mediaFile.name,
+                        hasMessage: !!mediaMessage.trim(),
+                        skipExisting: skipExisting,
+                        sentCount: data.sent_count || 0,
+                        failedCount: data.failed_count || 0,
+                        skippedCount: data.skipped_count || 0
+                    }
+                });
+            }
             
             if (data.status === "success") {
                 showNotification("Medios enviados exitosamente", "success");
@@ -97,6 +206,35 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
         } catch (error) {
             console.error("Error al enviar medios:", error);
             showNotification("Error al enviar medios: " + (error.message || "Error desconocido"), "error");
+            
+            // Log the error
+            if (user && user.uid) {
+                await logApiRequest({
+                    endpoint: "/enviar_media",
+                    requestData: {
+                        usuarios_count: usersList.length,
+                        media_type: mediaType,
+                        file_name: mediaFile.name,
+                        file_type: mediaFile.type,
+                        file_size: mediaFile.size,
+                        skip_existing: skipExisting,
+                        has_message: !!mediaMessage.trim()
+                    },
+                    userId: user.uid,
+                    status: "error",
+                    source: "SendMediaComponent",
+                    metadata: {
+                        error: error.message,
+                        action: "send_media",
+                        userCount: usersList.length,
+                        mediaType: mediaType,
+                        fileSize: mediaFile.size,
+                        fileName: mediaFile.name,
+                        hasMessage: !!mediaMessage.trim(),
+                        skipExisting: skipExisting
+                    }
+                });
+            }
         } finally {
             setLoading(false);
         }
@@ -249,7 +387,8 @@ SendMediaComponent.propTypes = {
     usersList: PropTypes.array.isRequired,
     showNotification: PropTypes.func.isRequired,
     loading: PropTypes.bool.isRequired,
-    setLoading: PropTypes.func.isRequired
+    setLoading: PropTypes.func.isRequired,
+    user: PropTypes.object // Add user prop
 };
 
 export default SendMediaComponent;

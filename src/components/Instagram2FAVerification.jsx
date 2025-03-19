@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import logApiRequest from "../requestLogger"; // Import the logger utility
+import logApiRequest from "../requestLogger";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 
@@ -8,7 +8,7 @@ const API_BASE_URL = "https://alets.com.ar";
 
 const Instagram2FAVerification = ({
   username,
-  onVerify2FA,   // Ahora es solo un callback tras éxito, SIN fetch duplicado
+  onVerify2FA,   // callback al padre
   onCancel,
   errorMessage,
   deviceId,
@@ -17,7 +17,7 @@ const Instagram2FAVerification = ({
   const [verificationCode, setVerificationCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState("");
-  const [remainingTime, setRemainingTime] = useState(120); // 2 min
+  const [remainingTime, setRemainingTime] = useState(120);
   const [isLocalhost, setIsLocalhost] = useState(false);
   const [detailedDebugInfo, setDetailedDebugInfo] = useState(null);
 
@@ -43,7 +43,7 @@ const Instagram2FAVerification = ({
     );
   }, []);
 
-  // Maneja la cuenta regresiva
+  // Cuenta regresiva
   useEffect(() => {
     const storedCookies = localStorage.getItem("instagram_cookies");
     if (storedCookies) {
@@ -68,7 +68,7 @@ const Instagram2FAVerification = ({
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  // Modo dev: simula verificación sin servidor
+  // Modo dev
   const simulateSuccessfulVerification = async () => {
     setLocalError("Modo desarrollo: Simulando verificación exitosa...");
     if (user) {
@@ -101,16 +101,10 @@ const Instagram2FAVerification = ({
     }
 
     showSnackbar("¡Verificación exitosa en modo desarrollo!", "success");
-
-    // No recargamos la página
     onCancel();
   };
 
-  /**
-   * handleVerification:
-   * Hace POST a /verify_2fa con el username y el verification_code,
-   * guardando cookies, token y device_id. NO duplicar la llamada en el padre.
-   */
+  // POST /verify_2fa
   const handleVerification = async () => {
     if (!verificationCode.trim()) {
       setLocalError("Por favor ingresa el código de verificación");
@@ -121,7 +115,6 @@ const Instagram2FAVerification = ({
       setLocalError("");
       setDetailedDebugInfo(null);
 
-      // Modo dev
       if (isLocalhost) {
         await simulateSuccessfulVerification();
         setIsSubmitting(false);
@@ -146,21 +139,18 @@ const Instagram2FAVerification = ({
         formData.append("device_id", deviceId);
       }
 
-      // Extra info 2FA
+      // Info 2FA
       const sessionId = localStorage.getItem("instagram_2fa_session");
       if (sessionId) {
         formData.append("session_id", sessionId);
-        console.log("Adding session_id to request:", sessionId);
       }
       const csrfToken = localStorage.getItem("instagram_csrf_token");
       if (csrfToken) {
         formData.append("csrf_token", csrfToken);
-        console.log("Adding csrf_token to request:", csrfToken);
       }
       const twoFactorInfo = localStorage.getItem("instagram_2fa_info");
       if (twoFactorInfo) {
         formData.append("two_factor_info", twoFactorInfo);
-        console.log("Adding two_factor_info to 2FA verification");
       }
 
       const headers = {
@@ -175,7 +165,6 @@ const Instagram2FAVerification = ({
       if (storedCookies) {
         try {
           headers["Cookie"] = JSON.parse(storedCookies);
-          console.log("Adding cookies to 2FA verification");
         } catch (e) {
           console.error("Error parsing stored cookies:", e);
         }
@@ -218,7 +207,7 @@ const Instagram2FAVerification = ({
         throw new Error("Invalid JSON response");
       }
 
-      // Log la respuesta
+      // Log
       if (user) {
         await logApiRequest({
           endpoint: "/verify_2fa",
@@ -234,8 +223,8 @@ const Instagram2FAVerification = ({
         });
       }
 
-      // OK
       if (data.status === "success" && data.token) {
+        // Guardar token y cookies
         localStorage.setItem("instagram_bot_token", data.token);
         if (data.cookies) {
           localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
@@ -248,9 +237,9 @@ const Instagram2FAVerification = ({
         }
         showSnackbar("¡Verificación exitosa!", "success");
 
-        // Llama callback del padre (NO hace fetch)
+        // Notificar al padre -> redirigir a 'Nueva solicitud'
         try {
-          await onVerify2FA(username, verificationCode);
+          await onVerify2FA(data.token);
         } catch (callbackError) {
           console.error("Error al llamar onVerify2FA:", callbackError);
           if (user) {
@@ -268,8 +257,7 @@ const Instagram2FAVerification = ({
           }
         }
 
-        // Cerramos modal sin recarga
-        onCancel();
+        onCancel(); // Cierra modal
       } else if (data.status === "challenge_required" || data.error_type === "challenge_required") {
         setLocalError(
           "Instagram requiere verificación adicional. Por favor, verifica tu email o SMS e intenta de nuevo."
@@ -312,7 +300,7 @@ const Instagram2FAVerification = ({
     }
   };
 
-  // Solicita nuevo código
+  // Solicitar nuevo código
   const requestNewCode = async () => {
     try {
       setIsSubmitting(true);
@@ -340,6 +328,7 @@ const Instagram2FAVerification = ({
       if (deviceId) {
         formData.append("device_id", deviceId);
       }
+
       const headers = {
         "User-Agent": "Instagram 219.0.0.12.117 Android",
         "Accept-Language": "es-ES, en-US",
@@ -517,7 +506,7 @@ const Instagram2FAVerification = ({
         </button>
       </div>
 
-      {/* Botón solicitar nuevo código */}
+      {/* Botón nuevo código */}
       <div className="text-center mb-4">
         <button
           onClick={requestNewCode}
@@ -564,7 +553,6 @@ const Instagram2FAVerification = ({
         </div>
       )}
 
-      {/* Snackbar */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={3500}

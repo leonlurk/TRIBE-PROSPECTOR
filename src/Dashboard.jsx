@@ -12,12 +12,12 @@ import WhitelistPanel from "./components/WhitelistPanel";
 
 const API_BASE_URL = "https://alets.com.ar";
 
-// Genera un deviceId simulado si no existe
+// Genera un deviceId simulado
 const generateRandomDeviceId = () => {
   return "android-" + Math.random().toString(36).substring(2, 15);
 };
 
-// Retardo aleatorio para simular acciones humanas
+// Retardo aleatorio
 const randomDelay = async (min = 800, max = 2500) => {
   const delay = Math.floor(Math.random() * (max - min) + min);
   return new Promise((resolve) => setTimeout(resolve, delay));
@@ -49,7 +49,7 @@ const Dashboard = () => {
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [showSidebar, setShowSidebar] = useState(false);
 
-  // Muestra notificación emergente
+  // Notificación simple
   const showNotification = (message, type = "info") => {
     setNotification({ show: true, message, type });
     setTimeout(() => {
@@ -59,7 +59,7 @@ const Dashboard = () => {
 
   const types = ["Plantillas de mensajes", "Plantillas de comentarios"];
 
-  // Filtra plantillas según un query de búsqueda
+  // Búsqueda
   const searchTemplates = (query) => {
     setSearchQuery(query);
     if (!query.trim()) {
@@ -75,7 +75,7 @@ const Dashboard = () => {
     setFilteredTemplates(filtered);
   };
 
-  // Carga las plantillas de Firestore
+  // Carga plantillas
   const fetchTemplates = useCallback(async (uid) => {
     try {
       setIsTemplatesLoading(true);
@@ -95,7 +95,7 @@ const Dashboard = () => {
     }
   }, []);
 
-  // Filtra las plantillas por plataforma
+  // Filtra por plataforma
   const filterTemplatesByPlatform = (platform) => {
     setSelectedPlatform(platform);
     setIsPlatformMenuOpen(false);
@@ -104,12 +104,12 @@ const Dashboard = () => {
       return;
     }
     const filtered = templates.filter(
-      (template) => template.platform.toLowerCase() === platform.toLowerCase()
+      (template) => template.platform?.toLowerCase() === platform.toLowerCase()
     );
     setFilteredTemplates(filtered);
   };
 
-  // Filtra las plantillas por tipo
+  // Filtra por tipo
   const filterTemplatesByType = (type) => {
     setSelectedType(type);
     setIsTypeMenuOpen(false);
@@ -133,7 +133,7 @@ const Dashboard = () => {
     filterTemplatesByPlatform(platform);
   };
 
-  // Verifica la sesión de Instagram (GET /session)
+  // Verifica sesión
   const checkInstagramSession = useCallback(
     async (token) => {
       try {
@@ -177,7 +177,7 @@ const Dashboard = () => {
   );
 
   useEffect(() => {
-    // Carga o genera deviceID
+    // Carga deviceId
     const savedDeviceId = localStorage.getItem("instagram_device_id");
     if (savedDeviceId) {
       setDeviceId(savedDeviceId);
@@ -187,7 +187,7 @@ const Dashboard = () => {
       localStorage.setItem("instagram_device_id", newDeviceId);
     }
 
-    // Carga cookies previas
+    // Carga cookies
     const savedCookies = localStorage.getItem("instagram_cookies");
     if (savedCookies) {
       try {
@@ -197,7 +197,7 @@ const Dashboard = () => {
       }
     }
 
-    // Suscribirse a la auth de Firebase
+    // Suscribirse a Auth
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       if (!currentUser) {
         navigate("/");
@@ -227,7 +227,7 @@ const Dashboard = () => {
       }
     });
 
-    // Maneja resize para cerrar menú lateral en desktop
+    // Resize listener
     const handleResize = () => {
       if (window.innerWidth >= 768) {
         setShowSidebar(false);
@@ -241,7 +241,7 @@ const Dashboard = () => {
     };
   }, [navigate, fetchTemplates, checkInstagramSession]);
 
-  // Guarda una plantilla en la base
+  // Guarda plantilla
   const saveTemplate = async () => {
     if (!user) {
       showNotification("Error: No hay un usuario autenticado.", "error");
@@ -285,7 +285,7 @@ const Dashboard = () => {
     }
   };
 
-  // Maneja opciones de plantillas
+  // Maneja opciones de plantilla
   const handleTemplateOptions = (template) => {
     if (!template.id) {
       showNotification("Error: La plantilla seleccionada no tiene un ID.", "error");
@@ -301,33 +301,26 @@ const Dashboard = () => {
   };
 
   /**
-   * handleConnectInstagram:
-   * Se pasa al componente hijo <ConnectInstagram> para que,
-   * cuando el login sea exitoso, guarde token y cookies, y actualice el estado global de Dashboard.
+   * Llamado cuando se completa el login en ConnectInstagram
    */
   const handleConnectInstagram = (tokenOrEmail, maybePassword) => {
-    // Por si quieres hacer algo extra cuando se loguea
     console.log("Se conectó la cuenta de Instagram con email:", tokenOrEmail);
-
-    // No hacemos la petición fetch /verify_2fa aquí. (Evitamos duplicación)
-    // Simplemente actualizamos estado si hace falta.
-    // Ejemplo: setIsInstagramConnected(true); setInstagramToken(algo) ...
   };
 
   /**
-   * onVerify2FASuccess:
-   * Se llama DESPUÉS de que <Instagram2FAVerification> verifique con éxito en su fetch,
-   * y no repetimos la llamada. Solo actualizamos estados globales si es necesario.
+   * Llamado cuando se completa la 2FA en Instagram2FAVerification
+   * => Cambiamos a 'Nueva solicitud', y marcamos conectado si quieres
    */
-  const onVerify2FASuccess = (username, verificationCode) => {
-    console.log(
-      "onVerify2FASuccess → 2FA verificado en el hijo. Podríamos actualizar estado del Dashboard si hace falta."
-    );
-    // EJEMPLO: setIsInstagramConnected(true);
-    // si deseas guardarlo en la base, etc.
+  const handleVerify2FASuccess = (token) => {
+    console.log("2FA verificada con éxito, token:", token);
+    setInstagramToken(token);
+    setIsInstagramConnected(true);
+
+    // **Redirigir a 'Nueva solicitud'**:
+    setSelectedOption("Nueva solicitud");
   };
 
-  // Renderiza el contenido según la sección seleccionada
+  // Render principal
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -364,8 +357,9 @@ const Dashboard = () => {
       return (
         <ConnectInstagram
           user={user}
-          onConnect={handleConnectInstagram} // Llamado cuando el login es success
-          onVerify2FA={onVerify2FASuccess} // Llamado cuando la 2FA es success (no hace fetch)
+          onConnect={handleConnectInstagram}
+          // Cuando el 2FA es exitoso, pasamos el token al Dashboard
+          onVerify2FA={handleVerify2FASuccess}
           errorMessage={errorMessage}
           showModal={showModal}
           setShowModal={setShowModal}
@@ -464,7 +458,10 @@ const Dashboard = () => {
                     <div className="flex items-center gap-4">
                       <div
                         className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center"
-                        style={{ backgroundImage: "url(/assets/Rectangle.png)", backgroundSize: "cover" }}
+                        style={{
+                          backgroundImage: "url(/assets/Rectangle.png)",
+                          backgroundSize: "cover",
+                        }}
                       >
                         <img
                           src={index % 2 === 0 ? "/assets/message.png" : "/assets/messages-2.png"}

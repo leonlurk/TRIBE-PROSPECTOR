@@ -9,12 +9,12 @@ const API_BASE_URL = "https://alets.com.ar";
 
 const ConnectInstagram = ({
   user,
-  onConnect,       // Se llama al completar login (status=success)
+  onConnect,       // Llamado cuando login (status=success)
+  onVerify2FA,     // Llamado cuando 2FA es success (solo callback)
   errorMessage,
   showModal,
   setShowModal,
   instagramToken,
-  onVerify2FA,     // Se llama al completar la 2FA con éxito (no hace fetch)
   deviceId: propDeviceId,
 }) => {
   const [email, setEmail] = useState("");
@@ -29,7 +29,7 @@ const ConnectInstagram = ({
   const [deviceId, setDeviceId] = useState("");
   const [debugInfo, setDebugInfo] = useState(null);
 
-  // Manejo de Snackbar
+  // Snackbar
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState("success");
@@ -65,7 +65,7 @@ const ConnectInstagram = ({
     setSnackbarMessage("");
   };
 
-  // Lógica de login (POST /login)
+  // POST /login
   const handleConnectInstagram = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -73,7 +73,7 @@ const ConnectInstagram = ({
     setHasLoginError(false);
     setDebugInfo(null);
 
-    // Verifica Términos
+    // Términos
     if (!acceptedTerms) {
       setLocalErrorMessage("Debes aceptar los términos y condiciones para continuar.");
       setHasLoginError(true);
@@ -89,7 +89,6 @@ const ConnectInstagram = ({
     }
 
     try {
-      // Log attempt
       if (user) {
         await logApiRequest({
           endpoint: "/login",
@@ -122,7 +121,6 @@ const ConnectInstagram = ({
       if (storedCookies) {
         try {
           headers["Cookie"] = JSON.parse(storedCookies);
-          console.log("Using stored cookies for login");
         } catch (e) {
           console.error("Error parsing stored cookies:", e);
         }
@@ -133,8 +131,6 @@ const ConnectInstagram = ({
         username: email,
         password: "******",
         deviceId: deviceId,
-        hasDeviceId: !!deviceId,
-        hasCookies: !!storedCookies,
       });
 
       const response = await fetch(`${API_BASE_URL}/login`, {
@@ -164,16 +160,13 @@ const ConnectInstagram = ({
         throw new Error("Invalid JSON response");
       }
 
-      // Log response
+      // Log
       if (user) {
         await logApiRequest({
           endpoint: "/login",
           requestData: { username: email },
           userId: user.uid,
-          responseData: {
-            status: data.status,
-            username: data.username || email,
-          },
+          responseData: { status: data.status, username: data.username || email },
           status: data.status === "success" ? "success" : "completed",
           source: "ConnectInstagram",
           metadata: {
@@ -181,13 +174,11 @@ const ConnectInstagram = ({
             loginStatus: data.status,
             needs2FA: data.status === "needs_verification",
             needsChallenge:
-              data.status === "challenge_required" ||
-              data.error_type === "challenge_required",
+              data.status === "challenge_required" || data.error_type === "challenge_required",
           },
         });
       }
 
-      // Escenarios
       if (data.status === "success" && data.token) {
         localStorage.setItem("instagram_bot_token", data.token);
         if (data.cookies) {
@@ -203,7 +194,7 @@ const ConnectInstagram = ({
         showSnackbar("Conexión exitosa", "success");
         setShowModal(false);
 
-        // Llamar callback del padre
+        // onConnect => avisa al padre
         try {
           await onConnect(email, password);
         } catch (err) {
@@ -229,15 +220,12 @@ const ConnectInstagram = ({
 
         if (data.session_id) {
           localStorage.setItem("instagram_2fa_session", data.session_id);
-          console.log("Stored 2FA session ID:", data.session_id);
         }
         if (data.csrf_token) {
           localStorage.setItem("instagram_csrf_token", data.csrf_token);
-          console.log("Stored CSRF token:", data.csrf_token);
         }
         if (data.two_factor_info) {
           localStorage.setItem("instagram_2fa_info", JSON.stringify(data.two_factor_info));
-          console.log("Stored 2FA info");
         }
         if (data.cookies) {
           localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
@@ -276,10 +264,7 @@ const ConnectInstagram = ({
         );
         setShowRecoveryInfo(true);
       } else if (data.status === "error" && data.message) {
-        if (
-          data.message.includes("temporarily blocked") ||
-          data.message.includes("suspicious")
-        ) {
+        if (data.message.includes("temporarily blocked") || data.message.includes("suspicious")) {
           setLocalErrorMessage(
             "Esta cuenta está temporalmente bloqueada por actividad sospechosa. Verifica tu email o accede directamente a Instagram para desbloquearla."
           );
@@ -320,7 +305,6 @@ const ConnectInstagram = ({
         Bienvenido, {user?.displayName || "Usuario"}
       </h1>
 
-      {/* Debug info */}
       {(window.location.hostname === "localhost" ||
         window.location.hostname === "127.0.0.1") &&
         debugInfo && (
@@ -349,7 +333,10 @@ const ConnectInstagram = ({
             {needs2FA ? (
               <Instagram2FAVerification
                 username={username}
-                onVerify2FA={onVerify2FA} // Solo callback sin fetch
+                onVerify2FA={(token) => {
+                  // Cuando 2FA es success, avisamos al padre con el token
+                  onVerify2FA(token);
+                }}
                 onCancel={handleCancel2FA}
                 errorMessage={errorMessage}
                 deviceId={deviceId}
@@ -505,7 +492,6 @@ const ConnectInstagram = ({
         </div>
       )}
 
-      {/* Snackbar */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={3500}

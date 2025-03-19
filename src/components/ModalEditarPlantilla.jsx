@@ -33,11 +33,7 @@ const ModalEditarPlantilla = ({
     ];
 
     const plataformas = [
-        "Instagram",
-        "WhatsApp",
-        "Facebook",
-        "TikTok",
-        "Email"
+        "Instagram"
     ];
 
     const handleSave = async () => {

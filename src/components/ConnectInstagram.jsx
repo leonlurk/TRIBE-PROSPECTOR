@@ -13,7 +13,8 @@ const ConnectInstagram = ({
     setShowModal, 
     instagramToken, 
     onVerify2FA,
-    deviceId: propDeviceId // Allow passing device ID from parent
+    deviceId: propDeviceId, // Allow passing device ID from parent
+    showNotification = () => {} // Add a simple notification function with empty default
 }) => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -45,12 +46,127 @@ const ConnectInstagram = ({
         }
     }, [propDeviceId]);
 
+    // Check for stored token on component mount
+    useEffect(() => {
+        const checkStoredToken = () => {
+            // Check for token in multiple storage locations
+            const tokenFromLS = localStorage.getItem("instagram_bot_token");
+            const tokenFromSS = sessionStorage.getItem("instagram_bot_token");
+            
+            // Check cookies
+            const getCookie = (name) => {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            };
+            const tokenFromCookie = getCookie("instagram_token");
+            
+            // Use the first available token
+            const availableToken = tokenFromLS || tokenFromSS || tokenFromCookie;
+            
+            if (availableToken && !instagramToken) {
+                console.log("Found stored token, checking if valid...");
+                // You might want to verify the token here
+                checkSession(availableToken);
+            }
+        };
+        
+        checkStoredToken();
+    }, [instagramToken]);
+
+    // Function to check if token is valid
+    const checkSession = async (token) => {
+        try {
+            console.log("Checking session validity...");
+            const response = await fetch(`${API_BASE_URL}/session`, {
+                method: "GET",
+                headers: {
+                    token: token,
+                    'User-Agent': 'Instagram 219.0.0.12.117 Android'
+                },
+                credentials: 'include' // Include cookies in the request
+            });
+            
+            if (!response.ok) {
+                console.log("Session check failed, status:", response.status);
+                return;
+            }
+            
+            const data = await response.json();
+            console.log("Session check response:", data);
+            
+            if (data.status === "success" && data.authenticated) {
+                // Token is valid, you could update state or call a callback here
+                console.log("Token is valid, session active");
+                
+                // Update cookies if provided
+                if (data.cookies) {
+                    localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
+                }
+                
+                // Let the parent component know we have a valid token
+                if (onConnect && typeof onConnect === 'function') {
+                    onConnect(data.username || "", "");
+                }
+            }
+        } catch (error) {
+            console.error("Error checking session:", error);
+        }
+    };
+
     const handleCancel2FA = () => {
         setNeeds2FA(false);
         setUsername("");
     };
 
+    // Success handler for 2FA verification
+    const handle2FASuccess = (token) => {
+        // Show success notification instead of alert
+        showNotification("Verificación exitosa", "success");
+        
+        // Update state so UI reflects authenticated status
+        setNeeds2FA(false);
+        setShowModal(false);
+        
+        // Let the parent component know
+        if (onConnect && typeof onConnect === 'function') {
+            // Pass empty password for security
+            onConnect(username, "");
+        }
+    };
+
     const handleConnectInstagram = async () => {
+        // In case there's an existing token, try to validate it first
+        const existingToken = localStorage.getItem("instagram_bot_token") || 
+                              sessionStorage.getItem("instagram_bot_token");
+        
+        if (existingToken) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/session`, {
+                    method: "GET",
+                    headers: {
+                        token: existingToken,
+                        'User-Agent': 'Instagram 219.0.0.12.117 Android'
+                    },
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === "success" && data.authenticated) {
+                        // Already authenticated!
+                        showNotification("Ya estás conectado a Instagram", "success");
+                        setShowModal(false);
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.log("Error verifying existing token:", error);
+                // Continue with login flow
+            }
+        }
+        
         if (isSubmitting) return;
         
         // Reset error states
@@ -135,7 +251,8 @@ const ConnectInstagram = ({
             const response = await fetch(`${API_BASE_URL}/login`, {
                 method: 'POST',
                 headers: headers,
-                body: formData
+                body: formData,
+                credentials: 'include' // Include cookies in the request
             });
             
             console.log("Login response status:", response.status);
@@ -185,7 +302,26 @@ const ConnectInstagram = ({
             // Handle different response scenarios
             if (data.status === 'success' && data.token) {
                 // Login successful
-                localStorage.setItem('instagram_bot_token', data.token);
+                // Store token in multiple places for redundancy
+                // 1. LocalStorage (primary)
+                localStorage.setItem("instagram_bot_token", data.token);
+                
+                // 2. SessionStorage (for tab-specific state)
+                sessionStorage.setItem("instagram_bot_token", data.token);
+                
+                // 3. Cookie (for better cross-tab persistence)
+                document.cookie = `instagram_token=${data.token}; path=/; max-age=2592000`; // 30 days
+                
+                // Also store username
+                if (data.username) {
+                    localStorage.setItem("instagram_username", data.username);
+                }
+                
+                // Show success notification
+                showNotification("Conectado a Instagram con éxito", "success");
+                
+                // Call parent component handler
+                await onConnect(email, password);
                 
                 if (data.cookies) {
                     localStorage.setItem('instagram_cookies', JSON.stringify(data.cookies));
@@ -196,33 +332,7 @@ const ConnectInstagram = ({
                     setDeviceId(data.device_id);
                 }
                 
-                if (data.username) {
-                    localStorage.setItem('instagram_username', data.username);
-                }
-                
                 setShowModal(false);
-                
-                // Call parent component handler
-                try {
-                    await onConnect(email, password);
-                } catch (err) {
-                    console.error("Error en onConnect:", err);
-                    
-                    // Log the error
-                    if (user) {
-                        await logApiRequest({
-                            endpoint: "/login",
-                            requestData: { username: email },
-                            userId: user.uid,
-                            status: "error",
-                            source: "ConnectInstagram",
-                            metadata: {
-                                error: err.message,
-                                action: "instagram_login_callback"
-                            }
-                        });
-                    }
-                }
             } 
             else if (data.status === 'needs_verification') {
                 // 2FA verification needed
@@ -339,6 +449,8 @@ const ConnectInstagram = ({
 
     // Handle 2FA verification
     const handle2FAVerification = async (username, verificationCode) => {
+        // Note: Most of the 2FA logic has been moved to the Instagram2FAVerification component
+        // This function is now primarily used as a callback for the parent component's awareness
         try {
             // Log the 2FA verification attempt
             if (user) {
@@ -354,142 +466,11 @@ const ConnectInstagram = ({
                 });
             }
             
-            // Create the verification request directly here to ensure we're capturing all data
-            const formData = new FormData();
-            formData.append("username", username);
-            formData.append("verification_code", verificationCode);
-            
-            // Add device ID if available
-            if (deviceId) {
-                formData.append("device_id", deviceId);
-            }
-            
-            // Add any stored session data
-            const sessionId = localStorage.getItem('instagram_2fa_session');
-            if (sessionId) {
-                formData.append("session_id", sessionId);
-                console.log("Adding session_id to 2FA verification:", sessionId);
-            }
-            
-            const csrfToken = localStorage.getItem('instagram_csrf_token');
-            if (csrfToken) {
-                formData.append("csrf_token", csrfToken);
-                console.log("Adding csrf_token to 2FA verification:", csrfToken);
-            }
-            
-            // Add any stored 2FA info
-            const twoFactorInfo = localStorage.getItem('instagram_2fa_info');
-            if (twoFactorInfo) {
-                formData.append("two_factor_info", twoFactorInfo);
-                console.log("Adding two_factor_info to 2FA verification");
-            }
-            
-            // Set headers
-            const headers = {
-                'User-Agent': 'Instagram 219.0.0.12.117 Android',
-                'Accept-Language': 'es-ES, en-US'
-            };
-            
-            if (deviceId) {
-                headers['X-IG-Device-ID'] = deviceId;
-                headers['X-IG-Android-ID'] = deviceId;
-            }
-            
-            // Add cookies if available
-            const storedCookies = localStorage.getItem('instagram_cookies');
-            if (storedCookies) {
-                try {
-                    headers['Cookie'] = JSON.parse(storedCookies);
-                    console.log("Adding cookies to 2FA verification");
-                } catch (e) {
-                    console.error("Error parsing stored cookies:", e);
-                }
-            }
-            
-            console.log("Sending 2FA verification request to:", `${API_BASE_URL}/verify_2fa`);
-            console.log("2FA Headers:", JSON.stringify(headers));
-            console.log("Form data keys being sent:");
-            for (let key of formData.keys()) {
-                console.log(`- ${key}: ${key === 'verification_code' ? verificationCode : '******'}`);
-            }
-            
-            const response = await fetch(`${API_BASE_URL}/verify_2fa`, {
-                method: "POST",
-                headers: headers,
-                body: formData
-            });
-            
-            console.log("2FA Response Status:", response.status);
-            
-            // Get response text for detailed logging
-            const responseText = await response.text();
-            console.log("2FA Response Text:", responseText);
-            
-            // Parse the response
-            let data;
-            try {
-                data = JSON.parse(responseText);
-                console.log("Parsed 2FA response:", data);
-            } catch (jsonError) {
-                console.error("Error parsing 2FA response as JSON:", jsonError);
-                throw new Error("Invalid JSON response from 2FA verification");
-            }
-            
-            // Store authentication data if successful
-            if (data.status === "success" && data.token) {
-                localStorage.setItem("instagram_bot_token", data.token);
-                
-                if (data.cookies) {
-                    localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
-                }
-                
-                if (data.device_id) {
-                    localStorage.setItem("instagram_device_id", data.device_id);
-                    setDeviceId(data.device_id);
-                }
-                
-                if (data.username) {
-                    localStorage.setItem("instagram_username", data.username);
-                }
-            }
-            
-            // Also call the provided onVerify2FA function from parent
-            try {
-                const result = await onVerify2FA(username, verificationCode);
-                
-                // Log the 2FA verification result from the parent handler
-                if (user) {
-                    await logApiRequest({
-                        endpoint: "/verify_2fa",
-                        requestData: { username },
-                        userId: user.uid,
-                        responseData: { 
-                            status: result?.status || "unknown",
-                            directStatus: data.status
-                        },
-                        status: data.status === "success" ? "success" : "completed",
-                        source: "ConnectInstagram",
-                        metadata: {
-                            action: "instagram_2fa_verification",
-                            directVerification: data.status === "success"
-                        }
-                    });
-                }
-                
-                // Return our direct verification result as priority
-                return data.status === "success" ? data : result;
-            } catch (callbackError) {
-                console.error("Error in parent onVerify2FA callback:", callbackError);
-                
-                // If parent callback failed but our direct verification succeeded, still return success
-                if (data.status === "success") {
-                    return data;
-                }
-                
-                throw callbackError;
-            }
+            // The actual verification is handled in the Instagram2FAVerification component
+            // This is just for notifying the parent component
+            return { status: "success", username: username };
         } catch (error) {
-            console.error("Error during 2FA verification:", error);
+            console.error("Error during 2FA verification callback:", error);
             
             // Log the 2FA verification error
             if (user) {
@@ -544,6 +525,7 @@ const ConnectInstagram = ({
                                 errorMessage={errorMessage}
                                 deviceId={deviceId}
                                 user={user}
+                                onSuccess={handle2FASuccess}
                             />
                         ) : showRecoveryInfo ? (
                             <>
@@ -670,12 +652,14 @@ ConnectInstagram.propTypes = {
     setShowModal: PropTypes.func.isRequired,
     instagramToken: PropTypes.string,
     deviceId: PropTypes.string,
+    showNotification: PropTypes.func
 };
 
 ConnectInstagram.defaultProps = {
     errorMessage: '',
     instagramToken: '',
-    deviceId: ''
+    deviceId: '',
+    showNotification: () => {}
 };
 
 export default ConnectInstagram;

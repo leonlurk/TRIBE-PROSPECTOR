@@ -10,7 +10,8 @@ const Instagram2FAVerification = ({
     onCancel, 
     errorMessage,
     deviceId,
-    user // Add user prop to access user ID
+    user, // Add user prop to access user ID
+    onSuccess // Add callback for successful verification
 }) => {
     const [verificationCode, setVerificationCode] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,21 +80,31 @@ const Instagram2FAVerification = ({
         const simulatedToken = `IGT-${Math.random().toString(36).substring(2, 15)}-${Date.now()}`;
         localStorage.setItem("instagram_bot_token", simulatedToken);
         
+        // Also set in session storage for redundancy
+        sessionStorage.setItem("instagram_bot_token", simulatedToken);
+        
+        // Set in cookie for better persistence
+        document.cookie = `instagram_token=${simulatedToken}; path=/; max-age=2592000`; // 30 days
+        
         // Simulate session cookies
         const simulatedCookies = `sessionid=${Date.now()}; csrftoken=${Math.random().toString(36).substring(2, 15)}`;
         localStorage.setItem("instagram_cookies", JSON.stringify(simulatedCookies));
         
         // Simulate device ID if it doesn't exist
         if (!localStorage.getItem("instagram_device_id")) {
-            localStorage.setItem("instagram_device_id", `dev_${Math.random().toString(36).substring(2, 10)}`);
+            const devId = `dev_${Math.random().toString(36).substring(2, 10)}`;
+            localStorage.setItem("instagram_device_id", devId);
+            document.cookie = `instagram_device_id=${devId}; path=/; max-age=2592000`;
         }
-        
-        // Notify user and reload
+
+        // Instead of alert and reload, use the success callback
         setTimeout(() => {
-            alert("¡Verificación exitosa en modo desarrollo! La aplicación se recargará.");
-            onCancel();
-            window.location.reload();
-        }, 1500);
+            if (onSuccess) {
+                onSuccess(simulatedToken);
+            } else {
+                onCancel();
+            }
+        }, 1000);
     };
 
     const handleVerification = async () => {
@@ -151,6 +162,13 @@ const Instagram2FAVerification = ({
                 formData.append("csrf_token", csrfToken);
                 console.log("Adding csrf_token to request:", csrfToken);
             }
+            
+            // Add any stored 2FA info
+            const twoFactorInfo = localStorage.getItem('instagram_2fa_info');
+            if (twoFactorInfo) {
+                formData.append("two_factor_info", twoFactorInfo);
+                console.log("Adding two_factor_info to request");
+            }
 
             // Prepare headers according to API specs
             const headers = {
@@ -185,13 +203,14 @@ const Instagram2FAVerification = ({
             // For debugging, print all form data
             console.log("Form data keys being sent:");
             for (let key of formData.keys()) {
-                console.log(`- ${key}: ${formData.get(key)}`);
+                console.log(`- ${key}: ${formData.get(key) === verificationCode ? '******' : formData.get(key)}`);
             }
 
             const response = await fetch(`${API_BASE_URL}/verify_2fa`, {
                 method: "POST",
                 headers: headers,
-                body: formData
+                body: formData,
+                credentials: 'include' // Include cookies in the request
             });
 
             console.log("2FA Response Status:", response.status);
@@ -238,15 +257,36 @@ const Instagram2FAVerification = ({
             }
 
             if (data.status === "success" && data.token) {
-                // Store authentication data
+                // Store authentication data in multiple storage mechanisms for redundancy
+                
+                // 1. LocalStorage (primary)
                 localStorage.setItem("instagram_bot_token", data.token);
                 
+                // 2. SessionStorage (backup)
+                sessionStorage.setItem("instagram_bot_token", data.token);
+                
+                // 3. Cookie (for better persistence and cross-tab usage)
+                document.cookie = `instagram_token=${data.token}; path=/; max-age=2592000`; // 30 days
+                
                 if (data.cookies) {
+                    // Store original cookies
                     localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
+                    
+                    // Also try to set them as actual browser cookies if they're in string format
+                    if (typeof data.cookies === 'string') {
+                        document.cookie = data.cookies + "; path=/";
+                    } else if (Array.isArray(data.cookies)) {
+                        data.cookies.forEach(cookie => {
+                            if (typeof cookie === 'string') {
+                                document.cookie = cookie + "; path=/";
+                            }
+                        });
+                    }
                 }
                 
                 if (data.device_id) {
                     localStorage.setItem("instagram_device_id", data.device_id);
+                    document.cookie = `instagram_device_id=${data.device_id}; path=/; max-age=2592000`;
                 }
                 
                 if (data.username) {
@@ -255,11 +295,17 @@ const Instagram2FAVerification = ({
                 
                 // Try calling the original callback
                 try {
-                    await onVerify2FA(username, verificationCode);
+                    // Call the parent's verification function
+                    const result = await onVerify2FA(username, verificationCode);
+                    
+                    // Log any issues with parent callback
+                    if (result && result.status !== "success") {
+                        console.warn("Parent verify2FA returned non-success status:", result);
+                    }
                 } catch (callbackError) {
                     console.error("Error al llamar onVerify2FA:", callbackError);
                     
-                    // Log the callback error
+                    // Log the callback error but continue since we've already stored the token
                     if (user) {
                         await logApiRequest({
                             endpoint: "/verify_2fa",
@@ -276,14 +322,15 @@ const Instagram2FAVerification = ({
                             }
                         });
                     }
-                    
-                    // Continue with our own handling
                 }
                 
-                // Close modal and redirect
-                alert("¡Verificación exitosa! La aplicación se recargará para aplicar los cambios.");
-                onCancel();
-                window.location.reload();
+                // Call success callback instead of reload
+                if (onSuccess) {
+                    onSuccess(data.token);
+                } else {
+                    // Fallback if no success callback provided
+                    onCancel();
+                }
             } else if (data.status === "challenge_required" || data.error_type === "challenge_required") {
                 setLocalError("Instagram requiere verificación adicional. Por favor, verifica tu email o SMS e intenta de nuevo.");
                 setDetailedDebugInfo({
@@ -398,7 +445,8 @@ const Instagram2FAVerification = ({
             const response = await fetch(`${API_BASE_URL}/request_new_2fa_code`, {
                 method: 'POST',
                 headers: headers,
-                body: formData
+                body: formData,
+                credentials: 'include' // Include cookies in the request
             });
             
             // Log the raw response for debugging
@@ -607,14 +655,16 @@ Instagram2FAVerification.propTypes = {
     onCancel: PropTypes.func.isRequired,
     errorMessage: PropTypes.string,
     deviceId: PropTypes.string,
-    user: PropTypes.object
+    user: PropTypes.object,
+    onSuccess: PropTypes.func // Add callback for successful verification
 };
 
 Instagram2FAVerification.defaultProps = {
     errorMessage: '',
     deviceId: null,
     onVerify2FA: () => {},
-    user: null
+    user: null,
+    onSuccess: null
 };
 
 export default Instagram2FAVerification;

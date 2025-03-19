@@ -21,6 +21,11 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
     const [filteredTemplates, setFilteredTemplates] = useState([]);
     const [templateSearchQuery, setTemplateSearchQuery] = useState("");
     const [activeTab, setActiveTab] = useState(initialTab || "message");
+    
+    // Nuevas variables de estado para integrar funcionalidades adicionales
+    const [commentsList, setCommentsList] = useState([]);
+    const [followersList, setFollowersList] = useState([]);
+    const [followingList, setFollowingList] = useState([]);
 
     // Función para mostrar notificaciones
     const showNotification = (message, type = "info") => {
@@ -153,6 +158,59 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 }
             });
         }
+    };
+
+    // Nueva función generalizada para realizar peticiones a la API (integrada del otro archivo)
+    const fetchData = async (endpoint, bodyParams, setStateCallback, logAction) => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+                method: "POST",
+                headers: { token: instagramToken },
+                body: new URLSearchParams(bodyParams)
+            });
+
+            if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+
+            const data = await response.json();
+            if (data.status === "success") {
+                setStateCallback(data);
+                showNotification(`Datos obtenidos exitosamente`, "success");
+            } else {
+                showNotification(`Error: ${data.message}`, "error");
+            }
+
+            await logApiRequest({
+                endpoint,
+                requestData: bodyParams,
+                userId: user?.uid,
+                status: data.status === "success" ? "success" : "error",
+                source: "NuevaSolicitudPanel",
+                metadata: { action: logAction }
+            });
+        } catch (error) {
+            showNotification("Error al conectar con la API", "error");
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Nuevas funciones integradas
+    const getComments = () => {
+        fetchData("get_comments", { post_url: postLink }, (data) => setCommentsList(data.comments), "get_comments");
+    };
+
+    const getFollowers = (username) => {
+        fetchData("get_followers", { username, amount: 50 }, (data) => setFollowersList(data.followers), "get_followers");
+    };
+
+    const getFollowing = (username) => {
+        fetchData("get_following", { username, amount: 50 }, (data) => setFollowingList(data.following), "get_following");
+    };
+
+    const likeLatestPost = (username) => {
+        fetchData("like_latest_post", { username }, () => showNotification("Like enviado", "success"), "like_latest_post");
     };
 
     const getLikes = async () => {
@@ -665,26 +723,90 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                         color: '#393346',
                     }}
                 />
-                <button
-                    onClick={getLikes}
-                    disabled={loading || !postLink.trim()}
-                    className="mt-2 px-6 py-3 rounded-full font-semibold flex items-center"
-                    style={{
-                        backgroundColor: loading || !postLink.trim() ? '#A6A6A6' : '#393346',
-                        color: '#FFFFFF',
-                        cursor: loading || !postLink.trim() ? 'not-allowed' : 'pointer',
-                    }}
-                >
-                    {loading ? (
-                        <>
-                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Cargando...
-                        </>
-                    ) : "Obtener Likes"}
-                </button>
+                <div className="flex flex-wrap gap-2 mt-2">
+                    <button
+                        onClick={getLikes}
+                        disabled={loading || !postLink.trim()}
+                        className="px-6 py-3 rounded-full font-semibold flex items-center"
+                        style={{
+                            backgroundColor: loading || !postLink.trim() ? '#A6A6A6' : '#393346',
+                            color: '#FFFFFF',
+                            cursor: loading || !postLink.trim() ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        {loading ? (
+                            <>
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Cargando...
+                            </>
+                        ) : "Obtener Likes"}
+                    </button>
+                    <button
+                        onClick={getComments}
+                        disabled={loading || !postLink.trim()}
+                        className="px-6 py-3 rounded-full font-semibold flex items-center"
+                        style={{
+                            backgroundColor: loading || !postLink.trim() ? '#A6A6A6' : '#524D5D',
+                            color: '#FFFFFF',
+                            cursor: loading || !postLink.trim() ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        {loading ? (
+                            <>
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Cargando...
+                            </>
+                        ) : "Obtener Comentarios"}
+                    </button>
+                </div>
+            </div>
+
+            {/* Opciones Avanzadas */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h3 className="text-lg font-semibold mb-3" style={{ color: '#080018' }}>Opciones Avanzadas</h3>
+                <div className="flex flex-wrap gap-2">
+                    <input
+                        type="text"
+                        placeholder="Ingresa nombre de usuario"
+                        className="p-2 border rounded flex-grow"
+                        style={{
+                            backgroundColor: '#FAFAFA',
+                            borderColor: '#A6A6A6',
+                            color: '#393346',
+                        }}
+                        onBlur={(e) => getFollowers(e.target.value)}
+                    />
+                    <button
+                        onClick={(e) => getFollowing(e.target.previousSibling.value)}
+                        disabled={loading}
+                        className="px-4 py-2 rounded font-medium"
+                        style={{
+                            backgroundColor: loading ? '#A6A6A6' : '#5468FF',
+                            color: '#FFFFFF',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        Obtener Seguidos
+                    </button>
+                    <button
+                        onClick={(e) => likeLatestPost(e.target.previousSibling.previousSibling.value)}
+                        disabled={loading}
+                        className="px-4 py-2 rounded font-medium"
+                        style={{
+                            backgroundColor: loading ? '#A6A6A6' : '#5468FF',
+                            color: '#FFFFFF',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        Dar Like a Última Publicación
+                    </button>
+                </div>
             </div>
     
             {usersList.length > 0 && (
@@ -910,6 +1032,57 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                         />
                     )}
                 </>
+            )}
+
+            {/* Secciones para mostrar los resultados de las nuevas funcionalidades */}
+            {commentsList.length > 0 && (
+                <div className="mt-6">
+                    <h3 className="text-xl font-semibold mb-2" style={{ color: '#080018' }}>
+                        Comentarios ({commentsList.length})
+                    </h3>
+                    <div className="max-h-60 overflow-y-auto p-2 border rounded-md bg-gray-50">
+                        {commentsList.map((comment, index) => (
+                            <div key={index} className="p-2 border-b last:border-b-0">
+                                <div className="flex justify-between">
+                                    <span className="font-medium">{comment.user}</span>
+                                    <span className="text-xs text-gray-500">
+                                        {new Date(comment.timestamp).toLocaleString()}
+                                    </span>
+                                </div>
+                                <p className="text-sm mt-1">{comment.text}</p>
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Likes: {comment.like_count} · ID: {comment.comment_id?.substring(0, 8)}...
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {followersList.length > 0 && (
+                <div className="mt-6">
+                    <h3 className="text-xl font-semibold mb-2" style={{ color: '#080018' }}>
+                        Seguidores ({followersList.length})
+                    </h3>
+                    <div className="max-h-40 overflow-y-auto p-2 border rounded-md bg-gray-50">
+                        {followersList.map((follower, index) => (
+                            <p key={index} className="text-sm">{follower}</p>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {followingList.length > 0 && (
+                <div className="mt-6">
+                    <h3 className="text-xl font-semibold mb-2" style={{ color: '#080018' }}>
+                        Seguidos ({followingList.length})
+                    </h3>
+                    <div className="max-h-40 overflow-y-auto p-2 border rounded-md bg-gray-50">
+                        {followingList.map((following, index) => (
+                            <p key={index} className="text-sm">{following}</p>
+                        ))}
+                    </div>
+                </div>
             )}
 
             {/* Modal para guardar en whitelist */}

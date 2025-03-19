@@ -661,20 +661,25 @@ const Dashboard = () => {
 
       {/* Modal para crear nueva plantilla */}
       {isCreateTemplateModalOpen && (
-        <ModalEditarPlantilla
-          isCreateMode
-          name={newTemplate}
-          platform={selectedPlatform}
-          body={newTemplateBody}
-          onClose={() => setIsCreateTemplateModalOpen(false)}
-          onUpdate={handleTemplateUpdated}
-          saveTemplate={saveTemplate}
-          setNewTemplate={setNewTemplate}
-          setNewTemplateBody={setNewTemplateBody}
-          selectedType={selectedType}
-          setSelectedType={setSelectedType}
-        />
-      )}
+  <ModalEditarPlantilla
+    isCreateMode={true}
+    template={{
+      id: null,
+      name: newTemplate,
+      platform: selectedPlatform !== "Plataformas" ? selectedPlatform : "",
+      body: newTemplateBody,
+      userId: user?.uid || "",
+      type: selectedType !== "Tipo" ? selectedType : "Plantillas de mensajes"
+    }}
+    onClose={() => setIsCreateTemplateModalOpen(false)}
+    onUpdate={handleTemplateUpdated}
+    saveTemplate={saveTemplate}
+    setNewTemplate={setNewTemplate}
+    setNewTemplateBody={setNewTemplateBody}
+    selectedType={selectedType}
+    setSelectedType={setSelectedType}
+  />
+)}
 
       {/* Panel de Blacklist (Modal) */}
       {showBlacklistPanel && (

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import Instagram2FAVerification from "./Instagram2FAVerification";
 import logApiRequest from "../requestLogger"; // Import the logger utility
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -13,8 +15,7 @@ const ConnectInstagram = ({
     setShowModal, 
     instagramToken, 
     onVerify2FA,
-    deviceId: propDeviceId, // Allow passing device ID from parent
-    showNotification = () => {} // Add a simple notification function with empty default
+    deviceId: propDeviceId // Allow passing device ID from parent
 }) => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -27,10 +28,14 @@ const ConnectInstagram = ({
     const [localErrorMessage, setLocalErrorMessage] = useState("");
     const [deviceId, setDeviceId] = useState("");
     const [debugInfo, setDebugInfo] = useState(null); // To store debug information
-    
+
+    // Manejo de Snackbar
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState("");
+    const [snackbarSeverity, setSnackbarSeverity] = useState("success");
+
     // Load device ID on component mount
     useEffect(() => {
-        // Use deviceId from props if available, otherwise use from localStorage
         if (propDeviceId) {
             setDeviceId(propDeviceId);
         } else {
@@ -39,157 +44,54 @@ const ConnectInstagram = ({
                 setDeviceId(savedDeviceId);
             } else {
                 // Generate a random device ID if none exists
-                const newDeviceId = 'android-' + Math.random().toString(36).substring(2, 15);
+                const newDeviceId = "android-" + Math.random().toString(36).substring(2, 15);
                 setDeviceId(newDeviceId);
                 localStorage.setItem("instagram_device_id", newDeviceId);
             }
         }
     }, [propDeviceId]);
 
-    // Check for stored token on component mount
-    useEffect(() => {
-        const checkStoredToken = () => {
-            // Check for token in multiple storage locations
-            const tokenFromLS = localStorage.getItem("instagram_bot_token");
-            const tokenFromSS = sessionStorage.getItem("instagram_bot_token");
-            
-            // Check cookies
-            const getCookie = (name) => {
-                const value = `; ${document.cookie}`;
-                const parts = value.split(`; ${name}=`);
-                if (parts.length === 2) return parts.pop().split(';').shift();
-                return null;
-            };
-            const tokenFromCookie = getCookie("instagram_token");
-            
-            // Use the first available token
-            const availableToken = tokenFromLS || tokenFromSS || tokenFromCookie;
-            
-            if (availableToken && !instagramToken) {
-                console.log("Found stored token, checking if valid...");
-                // You might want to verify the token here
-                checkSession(availableToken);
-            }
-        };
-        
-        checkStoredToken();
-    }, [instagramToken]);
-
-    // Function to check if token is valid
-    const checkSession = async (token) => {
-        try {
-            console.log("Checking session validity...");
-            const response = await fetch(`${API_BASE_URL}/session`, {
-                method: "GET",
-                headers: {
-                    token: token,
-                    'User-Agent': 'Instagram 219.0.0.12.117 Android'
-                },
-                credentials: 'include' // Include cookies in the request
-            });
-            
-            if (!response.ok) {
-                console.log("Session check failed, status:", response.status);
-                return;
-            }
-            
-            const data = await response.json();
-            console.log("Session check response:", data);
-            
-            if (data.status === "success" && data.authenticated) {
-                // Token is valid, you could update state or call a callback here
-                console.log("Token is valid, session active");
-                
-                // Update cookies if provided
-                if (data.cookies) {
-                    localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
-                }
-                
-                // Let the parent component know we have a valid token
-                if (onConnect && typeof onConnect === 'function') {
-                    onConnect(data.username || "", "");
-                }
-            }
-        } catch (error) {
-            console.error("Error checking session:", error);
-        }
-    };
-
     const handleCancel2FA = () => {
         setNeeds2FA(false);
         setUsername("");
     };
 
-    // Success handler for 2FA verification
-    const handle2FASuccess = (token) => {
-        // Show success notification instead of alert
-        showNotification("Verificación exitosa", "success");
-        
-        // Update state so UI reflects authenticated status
-        setNeeds2FA(false);
-        setShowModal(false);
-        
-        // Let the parent component know
-        if (onConnect && typeof onConnect === 'function') {
-            // Pass empty password for security
-            onConnect(username, "");
-        }
+    const showSnackbar = (message, severity = "success") => {
+        setSnackbarMessage(message);
+        setSnackbarSeverity(severity);
+        setSnackbarOpen(true);
+    };
+
+    const handleCloseSnackbar = () => {
+        setSnackbarOpen(false);
+        setSnackbarMessage("");
     };
 
     const handleConnectInstagram = async () => {
-        // In case there's an existing token, try to validate it first
-        const existingToken = localStorage.getItem("instagram_bot_token") || 
-                              sessionStorage.getItem("instagram_bot_token");
-        
-        if (existingToken) {
-            try {
-                const response = await fetch(`${API_BASE_URL}/session`, {
-                    method: "GET",
-                    headers: {
-                        token: existingToken,
-                        'User-Agent': 'Instagram 219.0.0.12.117 Android'
-                    },
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.status === "success" && data.authenticated) {
-                        // Already authenticated!
-                        showNotification("Ya estás conectado a Instagram", "success");
-                        setShowModal(false);
-                        return;
-                    }
-                }
-            } catch (error) {
-                console.log("Error verifying existing token:", error);
-                // Continue with login flow
-            }
-        }
-        
         if (isSubmitting) return;
-        
+
         // Reset error states
+        setIsSubmitting(true);
         setLocalErrorMessage("");
         setHasLoginError(false);
         setDebugInfo(null);
-        
+
         // Check terms first
         if (!acceptedTerms) {
             setLocalErrorMessage("Debes aceptar los términos y condiciones para continuar.");
             setHasLoginError(true);
+            setIsSubmitting(false);
             return;
         }
-        
+
         if (!email || !password) {
             setLocalErrorMessage("Por favor ingresa tu correo electrónico y contraseña.");
             setHasLoginError(true);
+            setIsSubmitting(false);
             return;
         }
-        
+
         try {
-            setIsSubmitting(true);
-            
             // Log the Instagram connect attempt
             if (user) {
                 await logApiRequest({
@@ -203,40 +105,40 @@ const ConnectInstagram = ({
                     }
                 });
             }
-            
+
             // Create FormData for the request
             const formData = new FormData();
-            formData.append('username', email);
-            formData.append('password', password);
-            
+            formData.append("username", email);
+            formData.append("password", password);
+
             // Add device ID if available
             if (deviceId) {
-                formData.append('device_id', deviceId);
-                formData.append('login_attempt_count', "1");
+                formData.append("device_id", deviceId);
+                formData.append("login_attempt_count", "1");
             }
-            
+
             // Set headers according to API specifications
             const headers = {
-                'User-Agent': 'Instagram 219.0.0.12.117 Android',
-                'Accept-Language': 'es-ES, en-US',
+                "User-Agent": "Instagram 219.0.0.12.117 Android",
+                "Accept-Language": "es-ES, en-US"
             };
-            
+
             if (deviceId) {
-                headers['X-IG-Device-ID'] = deviceId;
-                headers['X-IG-Android-ID'] = deviceId;
+                headers["X-IG-Device-ID"] = deviceId;
+                headers["X-IG-Android-ID"] = deviceId;
             }
-            
+
             // Add any existing cookies
-            const storedCookies = localStorage.getItem('instagram_cookies');
+            const storedCookies = localStorage.getItem("instagram_cookies");
             if (storedCookies) {
                 try {
-                    headers['Cookie'] = JSON.parse(storedCookies);
+                    headers["Cookie"] = JSON.parse(storedCookies);
                     console.log("Using stored cookies for login");
                 } catch (e) {
                     console.error("Error parsing stored cookies:", e);
                 }
             }
-            
+
             // Debug: Log the request being made
             console.log("Login request headers:", JSON.stringify(headers));
             console.log("Form data being sent:", {
@@ -246,21 +148,20 @@ const ConnectInstagram = ({
                 hasDeviceId: !!deviceId,
                 hasCookies: !!storedCookies
             });
-            
+
             // Make the login request
             const response = await fetch(`${API_BASE_URL}/login`, {
-                method: 'POST',
+                method: "POST",
                 headers: headers,
-                body: formData,
-                credentials: 'include' // Include cookies in the request
+                body: formData
             });
-            
+
             console.log("Login response status:", response.status);
-            
+
             // Get response as text first for detailed logging
             const responseText = await response.text();
             console.log("Login response text:", responseText);
-            
+
             // Parse the JSON response
             let data;
             try {
@@ -277,14 +178,14 @@ const ConnectInstagram = ({
                 });
                 throw new Error("Invalid JSON response");
             }
-            
+
             // Log the Instagram login response
             if (user) {
                 await logApiRequest({
                     endpoint: "/login",
                     requestData: { username: email },
                     userId: user.uid,
-                    responseData: { 
+                    responseData: {
                         status: data.status,
                         username: data.username || email
                     },
@@ -298,71 +199,78 @@ const ConnectInstagram = ({
                     }
                 });
             }
-            
+
             // Handle different response scenarios
-            if (data.status === 'success' && data.token) {
+            if (data.status === "success" && data.token) {
                 // Login successful
-                // Store token in multiple places for redundancy
-                // 1. LocalStorage (primary)
                 localStorage.setItem("instagram_bot_token", data.token);
-                
-                // 2. SessionStorage (for tab-specific state)
-                sessionStorage.setItem("instagram_bot_token", data.token);
-                
-                // 3. Cookie (for better cross-tab persistence)
-                document.cookie = `instagram_token=${data.token}; path=/; max-age=2592000`; // 30 days
-                
-                // Also store username
+
+                if (data.cookies) {
+                    localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
+                }
+
+                if (data.device_id) {
+                    localStorage.setItem("instagram_device_id", data.device_id);
+                    setDeviceId(data.device_id);
+                }
+
                 if (data.username) {
                     localStorage.setItem("instagram_username", data.username);
                 }
-                
-                // Show success notification
-                showNotification("Conectado a Instagram con éxito", "success");
-                
-                // Call parent component handler
-                await onConnect(email, password);
-                
-                if (data.cookies) {
-                    localStorage.setItem('instagram_cookies', JSON.stringify(data.cookies));
-                }
-                
-                if (data.device_id) {
-                    localStorage.setItem('instagram_device_id', data.device_id);
-                    setDeviceId(data.device_id);
-                }
-                
+
+                showSnackbar("Conexión exitosa", "success");
                 setShowModal(false);
-            } 
-            else if (data.status === 'needs_verification') {
+
+                // Call parent component handler
+                try {
+                    await onConnect(email, password);
+                } catch (err) {
+                    console.error("Error en onConnect:", err);
+
+                    // Log the error
+                    if (user) {
+                        await logApiRequest({
+                            endpoint: "/login",
+                            requestData: { username: email },
+                            userId: user.uid,
+                            status: "error",
+                            source: "ConnectInstagram",
+                            metadata: {
+                                error: err.message,
+                                action: "instagram_login_callback"
+                            }
+                        });
+                    }
+                }
+            } else if (data.status === "needs_verification") {
                 // 2FA verification needed
                 console.log("Se requiere verificación 2FA para:", data.username || email);
                 setNeeds2FA(true);
                 setUsername(data.username || email);
-                
+
                 // Store any session data if provided
                 if (data.session_id) {
-                    localStorage.setItem('instagram_2fa_session', data.session_id);
+                    localStorage.setItem("instagram_2fa_session", data.session_id);
                     console.log("Stored 2FA session ID:", data.session_id);
                 }
-                
+
                 if (data.csrf_token) {
-                    localStorage.setItem('instagram_csrf_token', data.csrf_token);
+                    localStorage.setItem("instagram_csrf_token", data.csrf_token);
                     console.log("Stored CSRF token:", data.csrf_token);
                 }
-                
+
                 if (data.two_factor_info) {
-                    localStorage.setItem('instagram_2fa_info', JSON.stringify(data.two_factor_info));
+                    localStorage.setItem("instagram_2fa_info", JSON.stringify(data.two_factor_info));
                     console.log("Stored 2FA info");
                 }
-                
+
                 // Store any cookies or identifiers that might be needed for 2FA
                 if (data.cookies) {
-                    localStorage.setItem('instagram_cookies', JSON.stringify(data.cookies));
+                    localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
                 }
-                
+
                 // Set debug info for development
-                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
                     setDebugInfo({
                         type: "needs_verification",
                         sessionData: {
@@ -374,42 +282,17 @@ const ConnectInstagram = ({
                         }
                     });
                 }
-            } 
-            else if (data.status === 'challenge_required' || data.error_type === 'challenge_required') {
+            } else if (data.status === "challenge_required" || data.error_type === "challenge_required") {
                 // Challenge verification required
                 console.log("Se requiere completar un desafío de seguridad");
                 setLocalErrorMessage("Instagram requiere verificación adicional. Por favor, verifica tu email o SMS e intenta de nuevo.");
                 setShowRecoveryInfo(true);
-                
-                // Save challenge info for debugging
-                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                    setDebugInfo({
-                        type: "challenge_required",
-                        details: data
-                    });
-                }
-                
-                // Store challenge data if available
-                if (data.challenge_url) {
-                    localStorage.setItem('instagram_challenge_url', data.challenge_url);
-                }
-                
-                if (data.challenge_id) {
-                    localStorage.setItem('instagram_challenge_id', data.challenge_id);
-                }
-            } 
-            else if (data.status === 'checkpoint_required' || data.error_type === 'checkpoint_challenge_required') {
+            } else if (data.status === "checkpoint_required" || data.error_type === "checkpoint_challenge_required") {
                 // Checkpoint verification required
                 console.log("Se requiere verificación de dispositivo");
                 setLocalErrorMessage("Instagram requiere verificación de dispositivo. Por favor, revise su email o SMS.");
                 setShowRecoveryInfo(true);
-                
-                // Store checkpoint data if available
-                if (data.checkpoint_url) {
-                    localStorage.setItem('instagram_checkpoint_url', data.checkpoint_url);
-                }
-            }
-            else if (data.status === 'error' && data.message) {
+            } else if (data.status === "error" && data.message) {
                 // Handle error message
                 if (data.message.includes("temporarily blocked") || data.message.includes("suspicious")) {
                     setLocalErrorMessage("Esta cuenta está temporalmente bloqueada por actividad sospechosa. Verifica tu email o accede directamente a Instagram para desbloquearla.");
@@ -417,8 +300,7 @@ const ConnectInstagram = ({
                     setLocalErrorMessage(data.message || "Error al conectar con Instagram");
                 }
                 setHasLoginError(true);
-            }
-            else {
+            } else {
                 // Unknown error
                 setLocalErrorMessage("Error desconocido al conectar con Instagram");
                 setHasLoginError(true);
@@ -427,7 +309,7 @@ const ConnectInstagram = ({
             console.error("Error during connection:", error);
             setLocalErrorMessage("Error de red o conexión con la API.");
             setHasLoginError(true);
-            
+
             // Log the error
             if (user) {
                 await logApiRequest({
@@ -449,8 +331,6 @@ const ConnectInstagram = ({
 
     // Handle 2FA verification
     const handle2FAVerification = async (username, verificationCode) => {
-        // Note: Most of the 2FA logic has been moved to the Instagram2FAVerification component
-        // This function is now primarily used as a callback for the parent component's awareness
         try {
             // Log the 2FA verification attempt
             if (user) {
@@ -465,13 +345,144 @@ const ConnectInstagram = ({
                     }
                 });
             }
-            
-            // The actual verification is handled in the Instagram2FAVerification component
-            // This is just for notifying the parent component
-            return { status: "success", username: username };
+
+            // Create the verification request directly here to ensure we're capturing all data
+            const formData = new FormData();
+            formData.append("username", username);
+            formData.append("verification_code", verificationCode);
+
+            // Add device ID if available
+            if (deviceId) {
+                formData.append("device_id", deviceId);
+            }
+
+            // Add any stored session data
+            const sessionId = localStorage.getItem("instagram_2fa_session");
+            if (sessionId) {
+                formData.append("session_id", sessionId);
+                console.log("Adding session_id to 2FA verification:", sessionId);
+            }
+
+            const csrfToken = localStorage.getItem("instagram_csrf_token");
+            if (csrfToken) {
+                formData.append("csrf_token", csrfToken);
+                console.log("Adding csrf_token to 2FA verification:", csrfToken);
+            }
+
+            // Add any stored 2FA info
+            const twoFactorInfo = localStorage.getItem("instagram_2fa_info");
+            if (twoFactorInfo) {
+                formData.append("two_factor_info", twoFactorInfo);
+                console.log("Adding two_factor_info to 2FA verification");
+            }
+
+            // Set headers
+            const headers = {
+                "User-Agent": "Instagram 219.0.0.12.117 Android",
+                "Accept-Language": "es-ES, en-US"
+            };
+
+            if (deviceId) {
+                headers["X-IG-Device-ID"] = deviceId;
+                headers["X-IG-Android-ID"] = deviceId;
+            }
+
+            // Add cookies if available
+            const storedCookies = localStorage.getItem("instagram_cookies");
+            if (storedCookies) {
+                try {
+                    headers["Cookie"] = JSON.parse(storedCookies);
+                    console.log("Adding cookies to 2FA verification");
+                } catch (e) {
+                    console.error("Error parsing stored cookies:", e);
+                }
+            }
+
+            console.log("Sending 2FA verification request to:", `${API_BASE_URL}/verify_2fa`);
+            console.log("2FA Headers:", JSON.stringify(headers));
+            console.log("Form data keys being sent:");
+            for (let key of formData.keys()) {
+                console.log(`- ${key}: ${key === "verification_code" ? verificationCode : "******"}`);
+            }
+
+            const response = await fetch(`${API_BASE_URL}/verify_2fa`, {
+                method: "POST",
+                headers: headers,
+                body: formData
+            });
+
+            console.log("2FA Response Status:", response.status);
+
+            // Get response text for detailed logging
+            const responseText = await response.text();
+            console.log("2FA Response Text:", responseText);
+
+            // Parse the response
+            let data;
+            try {
+                data = JSON.parse(responseText);
+                console.log("Parsed 2FA response:", data);
+            } catch (jsonError) {
+                console.error("Error parsing 2FA response as JSON:", jsonError);
+                throw new Error("Invalid JSON response from 2FA verification");
+            }
+
+            // Store authentication data if successful
+            if (data.status === "success" && data.token) {
+                localStorage.setItem("instagram_bot_token", data.token);
+
+                if (data.cookies) {
+                    localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
+                }
+
+                if (data.device_id) {
+                    localStorage.setItem("instagram_device_id", data.device_id);
+                    setDeviceId(data.device_id);
+                }
+
+                if (data.username) {
+                    localStorage.setItem("instagram_username", data.username);
+                }
+            }
+
+            // Also call the provided onVerify2FA function from parent
+            try {
+                const result = await onVerify2FA(username, verificationCode);
+
+                // Log the 2FA verification result from the parent handler
+                if (user) {
+                    await logApiRequest({
+                        endpoint: "/verify_2fa",
+                        requestData: { username },
+                        userId: user.uid,
+                        responseData: {
+                            status: result?.status || "unknown",
+                            directStatus: data.status
+                        },
+                        status: data.status === "success" ? "success" : "completed",
+                        source: "ConnectInstagram",
+                        metadata: {
+                            action: "instagram_2fa_verification",
+                            directVerification: data.status === "success"
+                        }
+                    });
+                }
+
+                // Return our direct verification result as priority
+                return data.status === "success" ? data : result;
+            } catch (callbackError) {
+                console.error("Error in parent onVerify2FA callback:", callbackError);
+
+                // If parent callback failed but our direct verification succeeded, still return success
+                if (data.status === "success") {
+                    return data;
+                }
+
+                throw callbackError;
+            }
         } catch (error) {
-            console.error("Error during 2FA verification callback:", error);
-            
+            console.error("Error during 2FA verification:", error);
+
             // Log the 2FA verification error
             if (user) {
                 await logApiRequest({
@@ -486,27 +497,31 @@ const ConnectInstagram = ({
                     }
                 });
             }
-            
+
             throw error;
         }
     };
 
     return (
         <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
-            <h1 className="text-xl md:text-2xl font-bold mb-4 text-[#393346]">Bienvenido, {user?.displayName || "Usuario"}</h1>
-            
+            <h1 className="text-xl md:text-2xl font-bold mb-4 text-[#393346]">
+                Bienvenido, {user?.displayName || "Usuario"}
+            </h1>
+
             {/* Debug info for developers (only on localhost) */}
-            {(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && debugInfo && (
+            {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && debugInfo && (
                 <div className="mb-4 p-3 bg-blue-50 border border-blue-300 rounded-lg">
                     <details>
-                        <summary className="font-medium text-blue-700 cursor-pointer">Debug Information (Developer Only)</summary>
+                        <summary className="font-medium text-blue-700 cursor-pointer">
+                            Debug Information (Developer Only)
+                        </summary>
                         <pre className="mt-2 text-xs overflow-auto max-h-60 p-2 bg-white border rounded">
                             {JSON.stringify(debugInfo, null, 2)}
                         </pre>
                     </details>
                 </div>
             )}
-            
+
             <button
                 onClick={() => setShowModal(true)}
                 className="px-4 md:px-6 py-2 md:py-3 bg-blue-600 text-white rounded-full shadow-sm font-semibold hover:bg-blue-700 transition text-sm md:text-base"
@@ -525,18 +540,24 @@ const ConnectInstagram = ({
                                 errorMessage={errorMessage}
                                 deviceId={deviceId}
                                 user={user}
-                                onSuccess={handle2FASuccess}
                             />
                         ) : showRecoveryInfo ? (
                             <>
-                                <h2 className="text-base md:text-lg font-semibold text-black mb-4">Recuperar acceso a Instagram</h2>
+                                <h2 className="text-base md:text-lg font-semibold text-black mb-4">
+                                    Recuperar acceso a Instagram
+                                </h2>
                                 <div className="text-gray-700 text-xs md:text-sm mb-4">
-                                    <p className="mb-2">Instagram ha detectado actividad inusual en tu cuenta y requiere verificación adicional:</p>
+                                    <p className="mb-2">
+                                        Instagram ha detectado actividad inusual en tu cuenta y requiere
+                                        verificación adicional:
+                                    </p>
                                     <ol className="list-decimal pl-5 space-y-1">
                                         <li>Abre la aplicación de Instagram en tu dispositivo</li>
                                         <li>Revisa tus notificaciones o correo electrónico para el mensaje de seguridad</li>
                                         <li>Sigue las instrucciones para verificar tu identidad</li>
-                                        <li>Una vez confirmada, regresa aquí e intenta conectarte de nuevo</li>
+                                        <li>
+                                            Una vez confirmada, regresa aquí e intenta conectarte de nuevo
+                                        </li>
                                     </ol>
                                 </div>
                                 <button
@@ -548,7 +569,9 @@ const ConnectInstagram = ({
                             </>
                         ) : (
                             <>
-                                <h2 className="text-base md:text-lg font-semibold text-black mb-4">Conectar cuenta de Instagram</h2>
+                                <h2 className="text-base md:text-lg font-semibold text-black mb-4">
+                                    Conectar cuenta de Instagram
+                                </h2>
                                 {errorMessage && (
                                     <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
                                         {errorMessage}
@@ -581,15 +604,20 @@ const ConnectInstagram = ({
                                 />
 
                                 <div className="flex items-start gap-2 mb-4">
-                                    <input 
-                                        type="checkbox" 
-                                        id="prospectar" 
-                                        className="mt-1 cursor-pointer" 
+                                    <input
+                                        type="checkbox"
+                                        id="prospectar"
+                                        className="mt-1 cursor-pointer"
                                         checked={acceptedTerms}
                                         onChange={(e) => setAcceptedTerms(e.target.checked)}
                                     />
-                                    <label htmlFor="prospectar" className="text-xs md:text-sm text-black cursor-pointer">
-                                        Aceptar términos y condiciones y políticas de privacidad en el inicio de sesión de instagram. Los términos y condiciones y políticas de privacidad se vean en la misma pagina.
+                                    <label
+                                        htmlFor="prospectar"
+                                        className="text-xs md:text-sm text-black cursor-pointer"
+                                    >
+                                        Aceptar términos y condiciones y políticas de privacidad en el
+                                        inicio de sesión de instagram. Los términos y condiciones y políticas
+                                        de privacidad se vean en la misma pagina.
                                     </label>
                                 </div>
                                 {!acceptedTerms && (
@@ -603,19 +631,37 @@ const ConnectInstagram = ({
                                     disabled={isSubmitting || !acceptedTerms || !email || !password}
                                     className={`w-full py-2 ${
                                         isSubmitting || !acceptedTerms || !email || !password
-                                            ? 'bg-gray-400 cursor-not-allowed'
-                                            : 'bg-[#8998F1] hover:bg-[#7988E0] cursor-pointer'
+                                            ? "bg-gray-400 cursor-not-allowed"
+                                            : "bg-[#8998F1] hover:bg-[#7988E0] cursor-pointer"
                                     } text-white rounded-md font-medium transition flex justify-center items-center text-sm md:text-base`}
                                 >
                                     {isSubmitting ? (
                                         <>
-                                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            <svg
+                                                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <circle
+                                                    className="opacity-25"
+                                                    cx="12"
+                                                    cy="12"
+                                                    r="10"
+                                                    stroke="currentColor"
+                                                    strokeWidth="4"
+                                                ></circle>
+                                                <path
+                                                    className="opacity-75"
+                                                    fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                ></path>
                                             </svg>
                                             Conectando...
                                         </>
-                                    ) : "Siguiente →"}
+                                    ) : (
+                                        "Siguiente →"
+                                    )}
                                 </button>
                             </>
                         )}
@@ -623,7 +669,9 @@ const ConnectInstagram = ({
                         {instagramToken && !needs2FA && !showRecoveryInfo && (
                             <div className="mt-4 p-2 md:p-3 bg-gray-100 border rounded">
                                 <p className="text-xs md:text-sm text-gray-600">Token de Instagram:</p>
-                                <p className="text-xs font-mono break-all">{instagramToken.substring(0, 40)}...</p>
+                                <p className="text-xs font-mono break-all">
+                                    {instagramToken.substring(0, 40)}...
+                                </p>
                             </div>
                         )}
 
@@ -639,6 +687,18 @@ const ConnectInstagram = ({
                     </div>
                 </div>
             )}
+
+            {/* Snackbar para mostrar mensajes de éxito/error sin recargar la página */}
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={3500}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            >
+                <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity}>
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
         </div>
     );
 };
@@ -651,15 +711,13 @@ ConnectInstagram.propTypes = {
     showModal: PropTypes.bool.isRequired,
     setShowModal: PropTypes.func.isRequired,
     instagramToken: PropTypes.string,
-    deviceId: PropTypes.string,
-    showNotification: PropTypes.func
+    deviceId: PropTypes.string
 };
 
 ConnectInstagram.defaultProps = {
-    errorMessage: '',
-    instagramToken: '',
-    deviceId: '',
-    showNotification: () => {}
+    errorMessage: "",
+    instagramToken: "",
+    deviceId: ""
 };
 
 export default ConnectInstagram;

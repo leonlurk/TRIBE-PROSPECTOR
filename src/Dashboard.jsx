@@ -3,12 +3,14 @@ import { db, auth } from "./firebaseConfig";
 import { collection, addDoc, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
-import { FaSearch, FaPlus, FaSlidersH, FaBars } from "react-icons/fa";
+import { FaSearch, FaPlus, FaSlidersH, FaBars, FaBan } from "react-icons/fa";
 import ChartComponent from "./components/ChartComponent";
 import ConnectInstagram from "./components/ConnectInstagram";
 import NuevaSolicitudPanel from "./components/NuevaSolicitudPanel";
 import ModalEditarPlantilla from "./components/ModalEditarPlantilla";
 import WhitelistPanel from "./components/WhitelistPanel";
+import BlacklistPanel from "./components/BlacklistPanel";
+import { checkBlacklistedUsers } from "./blacklistUtils";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -48,6 +50,7 @@ const Dashboard = () => {
   const [filteredTemplates, setFilteredTemplates] = useState([]);
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showBlacklistPanel, setShowBlacklistPanel] = useState(false);
 
   // Notificación simple
   const showNotification = (message, type = "info") => {
@@ -415,6 +418,14 @@ const Dashboard = () => {
               >
                 <FaPlus /> Crear Plantilla
               </button>
+
+              <button
+                className="px-4 md:px-6 py-2 md:py-3 bg-red-500 text-white rounded-full shadow-sm font-semibold flex items-center gap-2 hover:bg-red-600 transition text-sm md:text-base"
+                onClick={() => setShowBlacklistPanel(true)}
+              >
+                <FaBan /> Gestionar Blacklist
+              </button>
+
               <div className="relative">
                 <button
                   className="px-4 md:px-6 py-2 md:py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium text-sm md:text-base w-full md:w-auto"
@@ -662,6 +673,14 @@ const Dashboard = () => {
           setNewTemplateBody={setNewTemplateBody}
           selectedType={selectedType}
           setSelectedType={setSelectedType}
+        />
+      )}
+
+      {/* Panel de Blacklist (Modal) */}
+      {showBlacklistPanel && (
+        <BlacklistPanel
+          user={user}
+          onClose={() => setShowBlacklistPanel(false)}
         />
       )}
     </div>

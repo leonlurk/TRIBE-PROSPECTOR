@@ -4,6 +4,7 @@ import { db } from "../firebaseConfig";
 import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase/firestore";
 import SendMediaComponent from "./SendMediaComponent"; 
 import logApiRequest from "../requestLogger"; // Import the logger utility
+import { checkBlacklistedUsers } from "../blacklistUtils";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -339,218 +340,244 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
     
     const followUsers = async () => {
         if (usersList.length === 0) {
-            showNotification("No hay usuarios para seguir", "warning");
-            return;
+          showNotification("No hay usuarios para seguir", "warning");
+          return;
         }
         
         setLoading(true);
         try {
-            // Log the follow users attempt
-            if (user) {
-                await logApiRequest({
-                    endpoint: "/seguir_usuarios",
-                    requestData: { 
-                        usuarios_count: usersList.length 
-                    },
-                    userId: user.uid,
-                    status: "pending",
-                    source: "NuevaSolicitudPanel",
-                    metadata: {
-                        action: "follow_users",
-                        usersCount: usersList.length,
-                        postLink: postLink
-                    }
-                });
-            }
-            
-            const response = await fetch(`${API_BASE_URL}/seguir_usuarios`, {
-                method: "POST",
-                headers: {
-                    token: instagramToken,
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                body: new URLSearchParams({
-                    usuarios: usersList.join(",")
-                })
+          // Log the follow users attempt
+          if (user) {
+            await logApiRequest({
+              endpoint: "/seguir_usuarios",
+              requestData: { 
+                usuarios_count: usersList.length 
+              },
+              userId: user.uid,
+              status: "pending",
+              source: "NuevaSolicitudPanel",
+              metadata: {
+                action: "follow_users",
+                usersCount: usersList.length,
+                postLink: postLink
+              }
             });
-
-            if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            // Log the response
-            if (user) {
-                await logApiRequest({
-                    endpoint: "/seguir_usuarios",
-                    requestData: { 
-                        usuarios_count: usersList.length 
-                    },
-                    userId: user.uid,
-                    responseData: { 
-                        status: data.status,
-                        followedCount: data.followed_count || 0,
-                        skippedCount: data.skipped_count || 0
-                    },
-                    status: data.status === "success" ? "success" : "completed",
-                    source: "NuevaSolicitudPanel",
-                    metadata: {
-                        action: "follow_users",
-                        usersCount: usersList.length,
-                        postLink: postLink,
-                        followedCount: data.followed_count || 0,
-                        skippedCount: data.skipped_count || 0
-                    }
-                });
-            }
-            
-            showNotification("Seguimiento completado exitosamente", "success");
-            console.log(data);
-        } catch (error) {
-            showNotification("Error al seguir usuarios", "error");
-            console.error("Ocurrió un error:", error);
-            
-            // Log the error
-            if (user) {
-                await logApiRequest({
-                    endpoint: "/seguir_usuarios",
-                    requestData: { 
-                        usuarios_count: usersList.length 
-                    },
-                    userId: user.uid,
-                    status: "error",
-                    source: "NuevaSolicitudPanel",
-                    metadata: {
-                        action: "follow_users",
-                        error: error.message,
-                        usersCount: usersList.length,
-                        postLink: postLink
-                    }
-                });
-            }
-        } finally {
+          }
+          
+          // Verificar usuarios en blacklist antes de seguirlos
+          const filteredUsers = await checkBlacklistedUsers(usersList, user, showNotification, "NuevaSolicitudPanel");
+          
+          if (filteredUsers.length === 0) {
+            showNotification("Todos los usuarios están en listas negras. No se siguió a ningún usuario.", "warning");
             setLoading(false);
+            return;
+          }
+          
+          const response = await fetch(`${API_BASE_URL}/seguir_usuarios`, {
+            method: "POST",
+            headers: {
+              token: instagramToken,
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: new URLSearchParams({
+              usuarios: filteredUsers.join(",")
+            })
+          });
+      
+          if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+          }
+      
+          const data = await response.json();
+          
+          // Log the response
+          if (user) {
+            await logApiRequest({
+              endpoint: "/seguir_usuarios",
+              requestData: { 
+                usuarios_count: usersList.length,
+                filtered_users_count: filteredUsers.length
+              },
+              userId: user.uid,
+              responseData: { 
+                status: data.status,
+                followedCount: data.followed_count || 0,
+                skippedCount: data.skipped_count || 0,
+                blacklistedCount: usersList.length - filteredUsers.length
+              },
+              status: data.status === "success" ? "success" : "completed",
+              source: "NuevaSolicitudPanel",
+              metadata: {
+                action: "follow_users",
+                usersCount: usersList.length,
+                filteredUsersCount: filteredUsers.length,
+                blacklistedCount: usersList.length - filteredUsers.length,
+                postLink: postLink,
+                followedCount: data.followed_count || 0,
+                skippedCount: data.skipped_count || 0
+              }
+            });
+          }
+          
+          showNotification("Seguimiento completado exitosamente", "success");
+          console.log(data);
+        } catch (error) {
+          showNotification("Error al seguir usuarios", "error");
+          console.error("Ocurrió un error:", error);
+          
+          // Log the error
+          if (user) {
+            await logApiRequest({
+              endpoint: "/seguir_usuarios",
+              requestData: { 
+                usuarios_count: usersList.length 
+              },
+              userId: user.uid,
+              status: "error",
+              source: "NuevaSolicitudPanel",
+              metadata: {
+                action: "follow_users",
+                error: error.message,
+                usersCount: usersList.length,
+                postLink: postLink
+              }
+            });
+          }
+        } finally {
+          setLoading(false);
         }
-    };
+      };
 
     const sendMessages = async () => {
         if (usersList.length === 0) {
-            showNotification("No hay usuarios para enviar mensajes", "warning");
-            return;
+          showNotification("No hay usuarios para enviar mensajes", "warning");
+          return;
         }
         
         if (!message.trim()) {
-            showNotification("El mensaje no puede estar vacío", "warning");
-            return;
+          showNotification("El mensaje no puede estar vacío", "warning");
+          return;
         }
         
         setLoading(true);
         try {
-            // Log the send messages attempt
-            if (user) {
-                await logApiRequest({
-                    endpoint: "/enviar_mensajes_multiple",
-                    requestData: { 
-                        usuarios_count: usersList.length,
-                        mensaje_length: message.length,
-                        template_id: selectedTemplate?.id
-                    },
-                    userId: user.uid,
-                    status: "pending",
-                    source: "NuevaSolicitudPanel",
-                    metadata: {
-                        action: "send_messages",
-                        usersCount: usersList.length,
-                        messageLength: message.length,
-                        templateId: selectedTemplate?.id,
-                        templateName: selectedTemplate?.name,
-                        postLink: postLink
-                    }
-                });
-            }
-            
-            const response = await fetch(`${API_BASE_URL}/enviar_mensajes_multiple`, {
-                method: "POST",
-                headers: {
-                    token: instagramToken,
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                body: new URLSearchParams({
-                    usuarios: usersList.join(","),
-                    mensaje: message
-                })
+          // Log the send messages attempt
+          if (user) {
+            await logApiRequest({
+              endpoint: "/enviar_mensajes_multiple",
+              requestData: { 
+                usuarios_count: usersList.length,
+                mensaje_length: message.length,
+                template_id: selectedTemplate?.id
+              },
+              userId: user.uid,
+              status: "pending",
+              source: "NuevaSolicitudPanel",
+              metadata: {
+                action: "send_messages",
+                usersCount: usersList.length,
+                messageLength: message.length,
+                templateId: selectedTemplate?.id,
+                templateName: selectedTemplate?.name,
+                postLink: postLink
+              }
             });
-
-            if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            // Log the response
-            if (user) {
-                await logApiRequest({
-                    endpoint: "/enviar_mensajes_multiple",
-                    requestData: { 
-                        usuarios_count: usersList.length,
-                        mensaje_length: message.length,
-                        template_id: selectedTemplate?.id
-                    },
-                    userId: user.uid,
-                    responseData: { 
-                        status: data.status,
-                        sentCount: data.sent_count || 0,
-                        failedCount: data.failed_count || 0
-                    },
-                    status: data.status === "success" ? "success" : "completed",
-                    source: "NuevaSolicitudPanel",
-                    metadata: {
-                        action: "send_messages",
-                        usersCount: usersList.length,
-                        messageLength: message.length,
-                        templateId: selectedTemplate?.id,
-                        templateName: selectedTemplate?.name,
-                        postLink: postLink,
-                        sentCount: data.sent_count || 0,
-                        failedCount: data.failed_count || 0
-                    }
-                });
-            }
-            
-            showNotification("Mensajes enviados exitosamente", "success");
-            console.log(data);
-        } catch (error) {
-            showNotification("Error al enviar mensajes", "error");
-            console.error("Ocurrió un error:", error);
-            
-            // Log the error
-            if (user) {
-                await logApiRequest({
-                    endpoint: "/enviar_mensajes_multiple",
-                    requestData: { 
-                        usuarios_count: usersList.length,
-                        mensaje_length: message.length,
-                        template_id: selectedTemplate?.id
-                    },
-                    userId: user.uid,
-                    status: "error",
-                    source: "NuevaSolicitudPanel",
-                    metadata: {
-                        action: "send_messages",
-                        error: error.message,
-                        usersCount: usersList.length,
-                        messageLength: message.length,
-                        templateId: selectedTemplate?.id,
-                        templateName: selectedTemplate?.name,
-                        postLink: postLink
-                    }
-                });
-            }
-        } finally {
+          }
+          
+          // Verificar usuarios en blacklist antes de enviar mensajes
+          const filteredUsers = await checkBlacklistedUsers(usersList, user, showNotification, "NuevaSolicitudPanel");
+          
+          if (filteredUsers.length === 0) {
+            showNotification("Todos los usuarios están en listas negras. No se enviaron mensajes.", "warning");
             setLoading(false);
+            return;
+          }
+          
+          const response = await fetch(`${API_BASE_URL}/enviar_mensajes_multiple`, {
+            method: "POST",
+            headers: {
+              token: instagramToken,
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: new URLSearchParams({
+              usuarios: filteredUsers.join(","),
+              mensaje: message
+            })
+          });
+      
+          if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+          }
+      
+          const data = await response.json();
+          
+          // Log the response
+          if (user) {
+            await logApiRequest({
+              endpoint: "/enviar_mensajes_multiple",
+              requestData: { 
+                usuarios_count: usersList.length,
+                mensaje_length: message.length,
+                template_id: selectedTemplate?.id,
+                filtered_users_count: filteredUsers.length
+              },
+              userId: user.uid,
+              responseData: { 
+                status: data.status,
+                sentCount: data.sent_count || 0,
+                failedCount: data.failed_count || 0,
+                blacklistedCount: usersList.length - filteredUsers.length
+              },
+              status: data.status === "success" ? "success" : "completed",
+              source: "NuevaSolicitudPanel",
+              metadata: {
+                action: "send_messages",
+                usersCount: usersList.length,
+                filteredUsersCount: filteredUsers.length,
+                blacklistedCount: usersList.length - filteredUsers.length,
+                messageLength: message.length,
+                templateId: selectedTemplate?.id,
+                templateName: selectedTemplate?.name,
+                postLink: postLink,
+                sentCount: data.sent_count || 0,
+                failedCount: data.failed_count || 0
+              }
+            });
+          }
+          
+          showNotification(`Mensajes enviados exitosamente a ${data.sent_count || 0} usuarios`, "success");
+          console.log(data);
+        } catch (error) {
+          showNotification("Error al enviar mensajes", "error");
+          console.error("Ocurrió un error:", error);
+          
+          // Log the error
+          if (user) {
+            await logApiRequest({
+              endpoint: "/enviar_mensajes_multiple",
+              requestData: { 
+                usuarios_count: usersList.length,
+                mensaje_length: message.length,
+                template_id: selectedTemplate?.id
+              },
+              userId: user.uid,
+              status: "error",
+              source: "NuevaSolicitudPanel",
+              metadata: {
+                action: "send_messages",
+                error: error.message,
+                usersCount: usersList.length,
+                messageLength: message.length,
+                templateId: selectedTemplate?.id,
+                templateName: selectedTemplate?.name,
+                postLink: postLink
+              }
+            });
+          }
+        } finally {
+          setLoading(false);
         }
-    };
+      };
 
     // Guardar usuarios en una lista blanca
     const saveUsersToWhitelist = async () => {

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import PropTypes from 'prop-types';
 import logApiRequest from '../requestLogger'; // Import the logger utility
+import { checkBlacklistedUsers } from "../blacklistUtils";
+import { db } from "../firebaseConfig";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -89,156 +91,169 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
     // Enviar media a usuarios
     const sendMedia = async () => {
         if (usersList.length === 0) {
-            showNotification("No hay usuarios para enviar medios", "warning");
-            return;
+          showNotification("No hay usuarios para enviar medios", "warning");
+          return;
         }
         
         if (!mediaFile) {
-            showNotification("No has seleccionado ningún archivo", "warning");
-            return;
+          showNotification("No has seleccionado ningún archivo", "warning");
+          return;
         }
         
         setLoading(true);
         
         try {
-            // Log the send media request
-            if (user && user.uid) {
-                await logApiRequest({
-                    endpoint: "/enviar_media",
-                    requestData: {
-                        usuarios_count: usersList.length,
-                        media_type: mediaType,
-                        file_name: mediaFile.name,
-                        file_type: mediaFile.type,
-                        file_size: mediaFile.size,
-                        skip_existing: skipExisting,
-                        has_message: !!mediaMessage.trim()
-                    },
-                    userId: user.uid,
-                    status: "pending",
-                    source: "SendMediaComponent",
-                    metadata: {
-                        action: "send_media",
-                        userCount: usersList.length,
-                        mediaType: mediaType,
-                        fileSize: mediaFile.size,
-                        fileName: mediaFile.name,
-                        hasMessage: !!mediaMessage.trim(),
-                        skipExisting: skipExisting
-                    }
-                });
-            }
-            
-            // Crear FormData para enviar el archivo
-            const formData = new FormData();
-            formData.append("usuarios", usersList.join(","));
-            formData.append("media_type", mediaType);
-            formData.append("file", mediaFile);
-            formData.append("skip_existing", skipExisting);
-            
-            // Agregar mensaje opcional si existe
-            if (mediaMessage.trim()) {
-                formData.append("mensaje", mediaMessage);
-            }
-
-            // Realizar la petición con un timeout más largo debido al tamaño del archivo
-            const response = await fetch(`${API_BASE_URL}/enviar_media`, {
-                method: "POST",
-                headers: {
-                    token: instagramToken
-                },
-                body: formData
+          // Log the send media request
+          if (user && user.uid) {
+            await logApiRequest({
+              endpoint: "/enviar_media",
+              requestData: {
+                usuarios_count: usersList.length,
+                media_type: mediaType,
+                file_name: mediaFile.name,
+                file_type: mediaFile.type,
+                file_size: mediaFile.size,
+                skip_existing: skipExisting,
+                has_message: !!mediaMessage.trim()
+              },
+              userId: user.uid,
+              status: "pending",
+              source: "SendMediaComponent",
+              metadata: {
+                action: "send_media",
+                userCount: usersList.length,
+                mediaType: mediaType,
+                fileSize: mediaFile.size,
+                fileName: mediaFile.name,
+                hasMessage: !!mediaMessage.trim(),
+                skipExisting: skipExisting
+              }
             });
-
-            if (!response.ok) {
-                throw new Error(`Error HTTP: ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            // Log the send media response
-            if (user && user.uid) {
-                await logApiRequest({
-                    endpoint: "/enviar_media",
-                    requestData: {
-                        usuarios_count: usersList.length,
-                        media_type: mediaType,
-                        file_name: mediaFile.name,
-                        file_type: mediaFile.type,
-                        file_size: mediaFile.size,
-                        skip_existing: skipExisting,
-                        has_message: !!mediaMessage.trim()
-                    },
-                    userId: user.uid,
-                    responseData: { 
-                        status: data.status,
-                        sent_count: data.sent_count || 0,
-                        failed_count: data.failed_count || 0,
-                        skipped_count: data.skipped_count || 0
-                    },
-                    status: data.status === "success" ? "success" : "completed",
-                    source: "SendMediaComponent",
-                    metadata: {
-                        action: "send_media",
-                        userCount: usersList.length,
-                        mediaType: mediaType,
-                        fileSize: mediaFile.size,
-                        fileName: mediaFile.name,
-                        hasMessage: !!mediaMessage.trim(),
-                        skipExisting: skipExisting,
-                        sentCount: data.sent_count || 0,
-                        failedCount: data.failed_count || 0,
-                        skippedCount: data.skipped_count || 0
-                    }
-                });
-            }
-            
-            if (data.status === "success") {
-                showNotification("Medios enviados exitosamente", "success");
-                clearFileSelection();
-                setMediaMessage("");
-            } else {
-                showNotification(data.message || "Error al enviar medios", "error");
-            }
-            
-            console.log("Respuesta de envío de medios:", data);
-            
-        } catch (error) {
-            console.error("Error al enviar medios:", error);
-            showNotification("Error al enviar medios: " + (error.message || "Error desconocido"), "error");
-            
-            // Log the error
-            if (user && user.uid) {
-                await logApiRequest({
-                    endpoint: "/enviar_media",
-                    requestData: {
-                        usuarios_count: usersList.length,
-                        media_type: mediaType,
-                        file_name: mediaFile.name,
-                        file_type: mediaFile.type,
-                        file_size: mediaFile.size,
-                        skip_existing: skipExisting,
-                        has_message: !!mediaMessage.trim()
-                    },
-                    userId: user.uid,
-                    status: "error",
-                    source: "SendMediaComponent",
-                    metadata: {
-                        error: error.message,
-                        action: "send_media",
-                        userCount: usersList.length,
-                        mediaType: mediaType,
-                        fileSize: mediaFile.size,
-                        fileName: mediaFile.name,
-                        hasMessage: !!mediaMessage.trim(),
-                        skipExisting: skipExisting
-                    }
-                });
-            }
-        } finally {
+          }
+          
+          // Verificar usuarios en blacklist antes de enviar media
+          const filteredUsers = await checkBlacklistedUsers(usersList, user, showNotification, "SendMediaComponent");
+          
+          if (filteredUsers.length === 0) {
+            showNotification("Todos los usuarios están en listas negras. No se envió ningún medio.", "warning");
             setLoading(false);
+            return;
+          }
+          
+          // Crear FormData para enviar el archivo
+          const formData = new FormData();
+          formData.append("usuarios", filteredUsers.join(","));
+          formData.append("media_type", mediaType);
+          formData.append("file", mediaFile);
+          formData.append("skip_existing", skipExisting);
+          
+          // Agregar mensaje opcional si existe
+          if (mediaMessage.trim()) {
+            formData.append("mensaje", mediaMessage);
+          }
+      
+          // Realizar la petición con un timeout más largo debido al tamaño del archivo
+          const response = await fetch(`${API_BASE_URL}/enviar_media`, {
+            method: "POST",
+            headers: {
+              token: instagramToken
+            },
+            body: formData
+          });
+      
+          if (!response.ok) {
+            throw new Error(`Error HTTP: ${response.status}`);
+          }
+      
+          const data = await response.json();
+          
+          // Log the send media response
+          if (user && user.uid) {
+            await logApiRequest({
+              endpoint: "/enviar_media",
+              requestData: {
+                usuarios_count: usersList.length,
+                filtered_users_count: filteredUsers.length,
+                media_type: mediaType,
+                file_name: mediaFile.name,
+                file_type: mediaFile.type,
+                file_size: mediaFile.size,
+                skip_existing: skipExisting,
+                has_message: !!mediaMessage.trim()
+              },
+              userId: user.uid,
+              responseData: { 
+                status: data.status,
+                sent_count: data.sent_count || 0,
+                failed_count: data.failed_count || 0,
+                skipped_count: data.skipped_count || 0,
+                blacklisted_count: usersList.length - filteredUsers.length
+              },
+              status: data.status === "success" ? "success" : "completed",
+              source: "SendMediaComponent",
+              metadata: {
+                action: "send_media",
+                userCount: usersList.length,
+                filteredUsersCount: filteredUsers.length,
+                blacklistedCount: usersList.length - filteredUsers.length,
+                mediaType: mediaType,
+                fileSize: mediaFile.size,
+                fileName: mediaFile.name,
+                hasMessage: !!mediaMessage.trim(),
+                skipExisting: skipExisting,
+                sentCount: data.sent_count || 0,
+                failedCount: data.failed_count || 0,
+                skippedCount: data.skipped_count || 0
+              }
+            });
+          }
+          
+          if (data.status === "success") {
+            showNotification(`Medios enviados exitosamente a ${data.sent_count || 0} usuarios`, "success");
+            clearFileSelection();
+            setMediaMessage("");
+          } else {
+            showNotification(data.message || "Error al enviar medios", "error");
+          }
+          
+          console.log("Respuesta de envío de medios:", data);
+          
+        } catch (error) {
+          console.error("Error al enviar medios:", error);
+          showNotification("Error al enviar medios: " + (error.message || "Error desconocido"), "error");
+          
+          // Log the error
+          if (user && user.uid) {
+            await logApiRequest({
+              endpoint: "/enviar_media",
+              requestData: {
+                usuarios_count: usersList.length,
+                media_type: mediaType,
+                file_name: mediaFile.name,
+                file_type: mediaFile.type,
+                file_size: mediaFile.size,
+                skip_existing: skipExisting,
+                has_message: !!mediaMessage.trim()
+              },
+              userId: user.uid,
+              status: "error",
+              source: "SendMediaComponent",
+              metadata: {
+                error: error.message,
+                action: "send_media",
+                userCount: usersList.length,
+                mediaType: mediaType,
+                fileSize: mediaFile.size,
+                fileName: mediaFile.name,
+                hasMessage: !!mediaMessage.trim(),
+                skipExisting: skipExisting
+              }
+            });
+          }
+        } finally {
+          setLoading(false);
         }
-    };
+      };
 
     return (
         <div className="mt-6 p-4 bg-white rounded-lg shadow-sm">

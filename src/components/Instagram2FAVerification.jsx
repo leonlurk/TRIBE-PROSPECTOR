@@ -17,6 +17,7 @@ const Instagram2FAVerification = ({
     const [localError, setLocalError] = useState('');
     const [remainingTime, setRemainingTime] = useState(120); // 2 minute countdown
     const [isLocalhost, setIsLocalhost] = useState(false);
+    const [detailedDebugInfo, setDetailedDebugInfo] = useState(null); // Store detailed debug info
 
     // Determine if we're running on localhost
     useEffect(() => {
@@ -104,6 +105,7 @@ const Instagram2FAVerification = ({
         try {
             setIsSubmitting(true);
             setLocalError('');
+            setDetailedDebugInfo(null);
 
             // If we're on localhost, just simulate success
             if (isLocalhost) {
@@ -136,6 +138,19 @@ const Instagram2FAVerification = ({
             if (deviceId) {
                 formData.append("device_id", deviceId);
             }
+            
+            // Add any stored session data
+            const sessionId = localStorage.getItem('instagram_2fa_session');
+            if (sessionId) {
+                formData.append("session_id", sessionId);
+                console.log("Adding session_id to request:", sessionId);
+            }
+            
+            const csrfToken = localStorage.getItem('instagram_csrf_token');
+            if (csrfToken) {
+                formData.append("csrf_token", csrfToken);
+                console.log("Adding csrf_token to request:", csrfToken);
+            }
 
             // Prepare headers according to API specs
             const headers = {
@@ -147,13 +162,31 @@ const Instagram2FAVerification = ({
                 headers['X-IG-Device-ID'] = deviceId;
                 headers['X-IG-Android-ID'] = deviceId;
             }
+            
+            // Add cookies if available
+            const storedCookies = localStorage.getItem('instagram_cookies');
+            if (storedCookies) {
+                try {
+                    headers['Cookie'] = JSON.parse(storedCookies);
+                    console.log("Adding cookies to request");
+                } catch (e) {
+                    console.error("Error parsing stored cookies:", e);
+                }
+            }
 
             // Log request data for debugging
             console.log("Enviando solicitud de verificación 2FA:", {
                 username,
                 deviceId,
-                endpoint: `${API_BASE_URL}/verify_2fa`
+                endpoint: `${API_BASE_URL}/verify_2fa`,
+                headers: JSON.stringify(headers)
             });
+
+            // For debugging, print all form data
+            console.log("Form data keys being sent:");
+            for (let key of formData.keys()) {
+                console.log(`- ${key}: ${formData.get(key)}`);
+            }
 
             const response = await fetch(`${API_BASE_URL}/verify_2fa`, {
                 method: "POST",
@@ -161,8 +194,27 @@ const Instagram2FAVerification = ({
                 body: formData
             });
 
-            const data = await response.json();
-            console.log("Respuesta de verificación 2FA:", data);
+            console.log("2FA Response Status:", response.status);
+            
+            // Get response as text first for detailed logging
+            const responseText = await response.text();
+            console.log("2FA Response Text:", responseText);
+            
+            // Try to parse the response as JSON
+            let data;
+            try {
+                data = JSON.parse(responseText);
+                console.log("Parsed 2FA response:", data);
+            } catch (jsonError) {
+                console.error("Error parsing 2FA response as JSON:", jsonError);
+                setLocalError("Error: La respuesta del servidor no es un JSON válido");
+                setDetailedDebugInfo({
+                    error: "JSON parse error",
+                    responseText: responseText,
+                    status: response.status
+                });
+                throw new Error("Invalid JSON response");
+            }
 
             // Log the verification response
             if (user) {
@@ -195,6 +247,10 @@ const Instagram2FAVerification = ({
                 
                 if (data.device_id) {
                     localStorage.setItem("instagram_device_id", data.device_id);
+                }
+                
+                if (data.username) {
+                    localStorage.setItem("instagram_username", data.username);
                 }
                 
                 // Try calling the original callback
@@ -230,8 +286,16 @@ const Instagram2FAVerification = ({
                 window.location.reload();
             } else if (data.status === "challenge_required" || data.error_type === "challenge_required") {
                 setLocalError("Instagram requiere verificación adicional. Por favor, verifica tu email o SMS e intenta de nuevo.");
+                setDetailedDebugInfo({
+                    type: "challenge_required",
+                    details: data
+                });
             } else {
                 setLocalError(data.message || "Error de verificación 2FA");
+                setDetailedDebugInfo({
+                    type: "other_error",
+                    details: data
+                });
             }
         } catch (error) {
             console.error('2FA Verification error:', error);
@@ -314,6 +378,22 @@ const Instagram2FAVerification = ({
                 headers['X-IG-Android-ID'] = deviceId;
             }
             
+            // Add cookies if available
+            const storedCookies = localStorage.getItem('instagram_cookies');
+            if (storedCookies) {
+                try {
+                    headers['Cookie'] = JSON.parse(storedCookies);
+                } catch (e) {
+                    console.error("Error parsing stored cookies:", e);
+                }
+            }
+            
+            // Add stored session data
+            const sessionId = localStorage.getItem('instagram_2fa_session');
+            if (sessionId) {
+                formData.append("session_id", sessionId);
+            }
+            
             // This endpoint may need to be adjusted based on the actual API
             const response = await fetch(`${API_BASE_URL}/request_new_2fa_code`, {
                 method: 'POST',
@@ -321,7 +401,20 @@ const Instagram2FAVerification = ({
                 body: formData
             });
             
-            const data = await response.json();
+            // Log the raw response for debugging
+            console.log("Request new code status:", response.status);
+            const responseText = await response.text();
+            console.log("Request new code response:", responseText);
+            
+            // Parse as JSON
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error("Error parsing response:", e);
+                setLocalError("Error: respuesta no válida del servidor");
+                return false;
+            }
             
             // Log the response
             if (user) {
@@ -485,6 +578,18 @@ const Instagram2FAVerification = ({
                     <li>Si el código no llega, verifica tu conexión a internet</li>
                 </ul>
             </div>
+            
+            {/* Debug Info Section - only show in local development */}
+            {isLocalhost && detailedDebugInfo && (
+                <div className="mt-3 border border-blue-300 rounded p-2 bg-blue-50">
+                    <details>
+                        <summary className="text-xs text-blue-700 cursor-pointer font-medium">Debug Info (Developer Only)</summary>
+                        <pre className="text-xs mt-2 overflow-auto max-h-32">
+                            {JSON.stringify(detailedDebugInfo, null, 2)}
+                        </pre>
+                    </details>
+                </div>
+            )}
             
             {isLocalhost && (
                 <div className="mt-2 text-xs text-blue-500 italic bg-blue-50 p-2 rounded">

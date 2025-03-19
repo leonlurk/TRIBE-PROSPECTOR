@@ -4,6 +4,7 @@ import Instagram2FAVerification from "./Instagram2FAVerification";
 import logApiRequest from "../requestLogger"; // Import the logger utility
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
+import { saveInstagramSession } from "../instagramSessionUtils";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -180,6 +181,7 @@ const ConnectInstagram = ({
       }
 
       if (data.status === "success" && data.token) {
+        // Mantener el guardado en localStorage para compatibilidad
         localStorage.setItem("instagram_bot_token", data.token);
         if (data.cookies) {
           localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
@@ -191,9 +193,27 @@ const ConnectInstagram = ({
         if (data.username) {
           localStorage.setItem("instagram_username", data.username);
         }
+        
+        // Añadir esta sección para guardar en Firebase
+        if (user) {
+          try {
+            await saveInstagramSession(user.uid, {
+              token: data.token,
+              username: data.username || email,
+              deviceId: data.device_id || deviceId,
+              cookies: data.cookies
+            });
+            
+            console.log("Sesión de Instagram guardada en Firebase correctamente");
+          } catch (firebaseError) {
+            console.error("Error al guardar sesión en Firebase:", firebaseError);
+            // No interrumpir el flujo si falla
+          }
+        }
+        
         showSnackbar("Conexión exitosa", "success");
         setShowModal(false);
-
+      
         // onConnect => avisa al padre
         try {
           await onConnect(email, password);

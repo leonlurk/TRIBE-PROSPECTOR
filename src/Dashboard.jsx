@@ -11,6 +11,7 @@ import ModalEditarPlantilla from "./components/ModalEditarPlantilla";
 import WhitelistPanel from "./components/WhitelistPanel";
 import BlacklistPanel from "./components/BlacklistPanel";
 import { checkBlacklistedUsers } from "./blacklistUtils";
+import { getInstagramSession, clearInstagramSession } from "./instagramSessionUtils";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -189,8 +190,8 @@ const Dashboard = () => {
       setDeviceId(newDeviceId);
       localStorage.setItem("instagram_device_id", newDeviceId);
     }
-
-    // Carga cookies
+  
+    // Carga cookies del localStorage (solo para compatibilidad)
     const savedCookies = localStorage.getItem("instagram_cookies");
     if (savedCookies) {
       try {
@@ -199,37 +200,66 @@ const Dashboard = () => {
         console.error("Error al parsear cookies guardadas:", e);
       }
     }
-
+  
     // Suscribirse a Auth
     const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
       if (!currentUser) {
         navigate("/");
       } else {
         setUser(currentUser);
-        setIsLoading(false);
+        setIsLoading(true);
         fetchTemplates(currentUser.uid);
-
-        const userRef = doc(db, "users", currentUser.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists() && userSnap.data().instagramToken) {
-          const token = userSnap.data().instagramToken;
-          const sessionValid = await checkInstagramSession(token);
-          setIsInstagramConnected(sessionValid);
-
-          if (sessionValid) {
-            setInstagramToken(token);
-            localStorage.setItem("instagram_bot_token", token);
-            setSelectedOption("Plantilla de mensajes");
+  
+        try {
+          // Obtener sesión de Instagram desde Firebase
+          const instagramSession = await getInstagramSession(currentUser.uid);
+          
+          if (instagramSession && instagramSession.token) {
+            // Restaurar localStorage desde Firebase (para compatibilidad)
+            if (instagramSession.token) {
+              localStorage.setItem("instagram_bot_token", instagramSession.token);
+            }
+            if (instagramSession.cookies) {
+              localStorage.setItem(
+                "instagram_cookies", 
+                typeof instagramSession.cookies === 'string' 
+                  ? instagramSession.cookies 
+                  : JSON.stringify(instagramSession.cookies)
+              );
+              setSessionCookies(instagramSession.cookies);
+            }
+            if (instagramSession.deviceId) {
+              localStorage.setItem("instagram_device_id", instagramSession.deviceId);
+              setDeviceId(instagramSession.deviceId);
+            }
+            if (instagramSession.username) {
+              localStorage.setItem("instagram_username", instagramSession.username);
+            }
+            
+            // Verificar que la sesión sigue siendo válida
+            const sessionValid = await checkInstagramSession(instagramSession.token);
+            setIsInstagramConnected(sessionValid);
+  
+            if (sessionValid) {
+              setInstagramToken(instagramSession.token);
+              setSelectedOption("Plantilla de mensajes");
+            } else {
+              // La sesión expiró, limpiar datos
+              await clearInstagramSession(currentUser.uid);
+              setSelectedOption("Conectar Instagram");
+            }
           } else {
             setSelectedOption("Conectar Instagram");
           }
-        } else {
+        } catch (error) {
+          console.error("Error al recuperar sesión de Instagram:", error);
           setSelectedOption("Conectar Instagram");
+        } finally {
+          setIsLoading(false);
         }
       }
     });
-
+  
     // Resize listener
     const handleResize = () => {
       if (window.innerWidth >= 768) {
@@ -237,7 +267,7 @@ const Dashboard = () => {
       }
     };
     window.addEventListener("resize", handleResize);
-
+  
     return () => {
       unsubscribe();
       window.removeEventListener("resize", handleResize);
@@ -306,8 +336,16 @@ const Dashboard = () => {
   /**
    * Llamado cuando se completa el login en ConnectInstagram
    */
-  const handleConnectInstagram = (tokenOrEmail, maybePassword) => {
+  const handleConnectInstagram = async (tokenOrEmail, maybePassword) => {
     console.log("Se conectó la cuenta de Instagram con email:", tokenOrEmail);
+    
+    // Verificar si ya hay un token almacenado en el localStorage
+    const token = localStorage.getItem("instagram_bot_token");
+    if (token && user) {
+      // Actualizar estado
+      setInstagramToken(token);
+      setIsInstagramConnected(true);
+    }
   };
 
   /**

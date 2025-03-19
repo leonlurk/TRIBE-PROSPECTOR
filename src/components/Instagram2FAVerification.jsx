@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import logApiRequest from "../requestLogger";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
+import { saveInstagramSession } from "../instagramSessionUtils"; 
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -224,7 +225,7 @@ const Instagram2FAVerification = ({
       }
 
       if (data.status === "success" && data.token) {
-        // Guardar token y cookies
+        // Guardar token y cookies en localStorage (mantener para compatibilidad)
         localStorage.setItem("instagram_bot_token", data.token);
         if (data.cookies) {
           localStorage.setItem("instagram_cookies", JSON.stringify(data.cookies));
@@ -235,8 +236,26 @@ const Instagram2FAVerification = ({
         if (data.username) {
           localStorage.setItem("instagram_username", data.username);
         }
+        
+        // Guardar en Firebase para persistencia
+        if (user) {
+          try {
+            await saveInstagramSession(user.uid, {
+              token: data.token,
+              username: data.username || username,
+              deviceId: data.device_id || deviceId,
+              cookies: data.cookies
+            });
+            
+            console.log("Sesión de Instagram guardada en Firebase correctamente después de 2FA");
+          } catch (firebaseError) {
+            console.error("Error al guardar sesión en Firebase después de 2FA:", firebaseError);
+            // No interrumpir el flujo si falla
+          }
+        }
+        
         showSnackbar("¡Verificación exitosa!", "success");
-
+      
         // Notificar al padre -> redirigir a 'Nueva solicitud'
         try {
           await onVerify2FA(data.token);
@@ -256,7 +275,7 @@ const Instagram2FAVerification = ({
             });
           }
         }
-
+      
         onCancel(); // Cierra modal
       } else if (data.status === "challenge_required" || data.error_type === "challenge_required") {
         setLocalError(

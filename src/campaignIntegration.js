@@ -43,14 +43,14 @@ export const createCampaignOptions = (options = {}) => {
         postLink: postLink || null, // Evitar undefined
       };
 
-    case "send_media":
-      return {
-        ...campaignData,
-        name: name || `Envío de ${mediaType || "media"} (${users.length} usuarios)`,
-        mediaType,
-        fileName,
-        postLink,
-      };
+      case "send_media":
+        return {
+          ...campaignData,
+          name: name || `Envío de ${mediaType || "media"} (${users.length} usuarios)`,
+          mediaType,
+          fileName,
+          postLink: postLink || null, // <--- con esto evitas que sea undefined
+        };
 
     case "follow_users":
       return {

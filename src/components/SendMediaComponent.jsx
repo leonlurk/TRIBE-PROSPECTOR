@@ -330,7 +330,7 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
             <h3 className="text-lg font-semibold mb-4">Enviar Media</h3>
             
             <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium bg-[#FFFFFF] text-black mb-1">
                     Tipo de Media
                 </label>
                 <select
@@ -416,7 +416,7 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
             </div>
 
             <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-black bg-white mb-1">
                     Mensaje (opcional)
                 </label>
                 <textarea

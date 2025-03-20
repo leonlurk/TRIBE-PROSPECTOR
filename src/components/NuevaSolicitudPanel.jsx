@@ -540,12 +540,12 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
           // Crear una campaña para esta operación
           if (user && user.uid) {
             const campaignOptions = createCampaignOptions({
-              type: "send_messages",
-              users: usersList,
-              endpoint: "/enviar_mensajes_multiple",
-              templateName: selectedTemplate?.name,
-              postLink: postLink
-            });
+                type: "send_messages",
+                users: usersList,
+                endpoint: "/enviar_mensajes_multiple",
+                templateName: selectedTemplate?.name || null,
+                postLink: postLink
+              });
             
             campaignId = await createCampaign(user.uid, campaignOptions);
             
@@ -558,26 +558,26 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
           // Log the send messages attempt (código existente)
           if (user) {
             await logApiRequest({
-              endpoint: "/enviar_mensajes_multiple",
-              requestData: { 
-                usuarios_count: usersList.length,
-                mensaje_length: message.length,
-                template_id: selectedTemplate?.id,
-                campaign_id: campaignId
-              },
-              userId: user.uid,
-              status: "pending",
-              source: "NuevaSolicitudPanel",
-              metadata: {
-                action: "send_messages",
-                usersCount: usersList.length,
-                messageLength: message.length,
-                templateId: selectedTemplate?.id,
-                templateName: selectedTemplate?.name,
-                postLink: postLink,
-                campaignId: campaignId
-              }
-            });
+                endpoint: "/enviar_mensajes_multiple",
+                requestData: { 
+                  usuarios_count: usersList.length,
+                  mensaje_length: message.length,
+                  template_id: selectedTemplate ? selectedTemplate.id : null, // Evitar undefined
+                  campaign_id: campaignId
+                },
+                userId: user.uid,
+                status: "pending",
+                source: "NuevaSolicitudPanel",
+                metadata: {
+                  action: "send_messages",
+                  usersCount: usersList.length,
+                  messageLength: message.length,
+                  templateId: selectedTemplate ? selectedTemplate.id : null, // Evitar undefined
+                  templateName: selectedTemplate ? selectedTemplate.name : null, // Evitar undefined
+                  postLink: postLink,
+                  campaignId: campaignId
+                }
+              });
           }
           
           // Verificar usuarios en blacklist (código existente)

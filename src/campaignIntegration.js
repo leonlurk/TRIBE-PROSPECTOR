@@ -39,8 +39,8 @@ export const createCampaignOptions = (options = {}) => {
       return {
         ...campaignData,
         name: name || `Envío de mensajes (${users.length} usuarios)`,
-        templateName,
-        postLink,
+        templateName: templateName || null, // Evitar undefined
+        postLink: postLink || null, // Evitar undefined
       };
 
     case "send_media":

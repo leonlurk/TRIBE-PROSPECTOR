@@ -6,7 +6,7 @@ import SendMediaComponent from "./SendMediaComponent";
 import logApiRequest from "../requestLogger"; // Import the logger utility
 import { checkBlacklistedUsers } from "../blacklistUtils";
 import { createCampaignOptions, startCampaignMonitoring } from "../campaignIntegration";
-import { createCampaign, updateCampaign } from "../campaignStore";
+import { createCampaign, updateCampaign, ensureUserExists } from '../campaignStore';
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -539,21 +539,35 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         try {
           // Crear una campaña para esta operación
           if (user && user.uid) {
+            console.log("Creando campaña para usuario:", user.uid);
+            
             const campaignOptions = createCampaignOptions({
                 type: "send_messages",
                 users: usersList,
                 endpoint: "/enviar_mensajes_multiple",
                 templateName: selectedTemplate?.name || null,
                 postLink: postLink
-              });
-            
-            campaignId = await createCampaign(user.uid, campaignOptions);
-            
-            // Iniciar monitoreo de la campaña
-            stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
-              token: instagramToken
             });
-          }
+            
+            try {
+                // Aseguramos que el documento del usuario exista antes de crear la campaña
+                await ensureUserExists(user.uid);
+                
+                campaignId = await createCampaign(user.uid, campaignOptions);
+                console.log("Campaña creada con ID:", campaignId);
+                
+                // Iniciar monitoreo de la campaña solo si se creó exitosamente
+                if (campaignId) {
+                    stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+                        token: instagramToken
+                    });
+                    console.log("Monitoreo de campaña iniciado");
+                }
+            } catch (campaignError) {
+                console.error("Error al crear la campaña:", campaignError);
+                // Continuar con el envío de mensajes incluso si falla la creación de la campaña
+            }
+        }
           
           // Log the send messages attempt (código existente)
           if (user) {

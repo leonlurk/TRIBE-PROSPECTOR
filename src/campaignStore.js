@@ -1,5 +1,5 @@
 import { db } from "./firebaseConfig";
-import { collection, addDoc, getDocs, doc, updateDoc, getDoc, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, updateDoc, getDoc, setDoc, query, where, orderBy, limit } from "firebase/firestore";
 
 /**
  * Crea una nueva campaña en Firestore
@@ -9,19 +9,37 @@ import { collection, addDoc, getDocs, doc, updateDoc, getDoc, query, where, orde
  */
 export const createCampaign = async (userId, campaignData) => {
   try {
+    // Verificar que userId existe
+    if (!userId) {
+      console.error("Error: userId no proporcionado");
+      throw new Error("userId es obligatorio para crear una campaña");
+    }
+    
+    // Referencia correcta a la subcolección campaigns dentro del documento del usuario
     const campaignsRef = collection(db, "users", userId, "campaigns");
-    const docRef = await addDoc(campaignsRef, {
+    
+    // Asegurar que los campos necesarios existen
+    const campaignDataToSave = {
       ...campaignData,
       createdAt: new Date(),
       lastUpdated: new Date(),
       status: "processing", // processing, completed, failed
       progress: 0,
       totalProcessed: 0
-    });
+    };
+    
+    // Crear el documento
+    const docRef = await addDoc(campaignsRef, campaignDataToSave);
+    
+    console.log(`Campaña creada exitosamente: ${docRef.id} para usuario: ${userId}`);
     
     return docRef.id;
   } catch (error) {
     console.error("Error al crear campaña:", error);
+    console.error("Detalles adicionales:", {
+      userId: userId,
+      campaignData: JSON.stringify(campaignData)
+    });
     throw error;
   }
 };
@@ -33,6 +51,30 @@ export const createCampaign = async (userId, campaignData) => {
  * @param {Object} updateData - Datos a actualizar
  * @returns {Promise<void>}
  */
+
+export const ensureUserExists = async (userId) => {
+  if (!userId) return false;
+  
+  try {
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    
+    if (!userSnap.exists()) {
+      // Crear el documento del usuario si no existe
+      await setDoc(userRef, {
+        createdAt: new Date(),
+        userCreatedManually: true
+      });
+      console.log("Documento de usuario creado:", userId);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error al verificar/crear usuario:", error);
+    return false;
+  }
+};
+
 export const updateCampaign = async (userId, campaignId, updateData) => {
   try {
     const campaignRef = doc(db, "users", userId, "campaigns", campaignId);

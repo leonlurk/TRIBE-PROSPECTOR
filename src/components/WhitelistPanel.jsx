@@ -570,7 +570,7 @@ const WhitelistPanel = ({ user }) => {
                                         placeholder="Buscar usuarios"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10 p-2 w-full border border-gray-300 rounded-full bg-white"
+                                        className="pl-10 p-2 w-full border border-gray-300 rounded-full bg-white text-black"
                                     />
                                 </div>
                             </div>

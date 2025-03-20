@@ -765,7 +765,7 @@ const BlacklistPanel = ({ user, onClose }) => {
                                                 placeholder="Buscar usuarios"
                                                 value={searchTerm}
                                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                                className="pl-10 p-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                                className="pl-10 p-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-black"
                                             />
                                         </div>
                                     </div>
@@ -780,7 +780,7 @@ const BlacklistPanel = ({ user, onClose }) => {
                                             placeholder="Nombre de usuario"
                                             value={manualUsername}
                                             onChange={(e) => setManualUsername(e.target.value)}
-                                            className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                            className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-black"
                                         />
                                         <button
                                             onClick={addUserToBlacklist}

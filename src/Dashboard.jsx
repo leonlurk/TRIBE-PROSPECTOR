@@ -425,7 +425,7 @@ const Dashboard = () => {
         <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-4">
             <div className="relative w-full md:w-1/3">
-              <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" />
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
               <input
                 type="text"
                 placeholder="Buscar Plantilla"

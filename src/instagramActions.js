@@ -2,7 +2,7 @@
 // Centraliza las funciones para consumir los endpoints “extendidos”.
 // Puedes ubicar este archivo en /src/ (p.ej., junto a Dashboard.jsx, etc.)
 
-const API_BASE_URL = "https://your-api-domain.com"; 
+const API_BASE_URL = "https://alets.com.ar";
 // Ajusta esto al dominio real de tu API, p.ej. "https://alets.com.ar"
 
 // Función para construir headers comunes, con el token y cookies de localStorage

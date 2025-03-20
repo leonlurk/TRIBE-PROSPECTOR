@@ -88,7 +88,7 @@ export const verifySSOToken = functionsV1.https.onRequest(async (req, res) => {
     }
     
     // Extract user information
-    const { email, name, sub: externalUserId } = decodedPayload;
+    const { email, username, name: nombre, lastname: apellido, expiration_date: fechaExpiracion, password, sub: externalUserId } = decodedPayload;
     
     // Find or create user in Firebase Auth
     let uid;
@@ -113,17 +113,21 @@ export const verifySSOToken = functionsV1.https.onRequest(async (req, res) => {
       ssoProvider: 'empresa_partner'
     });
     
-    // Return successful response
-    return res.status(200).json({
-      customToken,
-      userData: {
-        email,
-        username: name,
-        provider: 'empresa_partner',
-        externalUserId,
-        forceUpdate: false
-      }
-    });
+    
+return res.status(200).json({
+  customToken,
+  userData: {
+    email,
+    username,
+    nombre,
+    apellido,
+    fechaExpiracion,
+    password, // Ten en cuenta que no es recomendable manejar contraseñas en un SSO
+    provider: 'empresa_partner',
+    externalUserId,
+    forceUpdate: false
+  }
+});
     
   } catch (error) {
     console.error('Detailed Error:', error);

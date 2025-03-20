@@ -10,17 +10,19 @@ const logoPath = "/LogoNegro.png";
 
 const getMenuItems = (isInstagramConnected) => {
     const baseMenuItems = [
-        { name: "Whitelist", icon: "/assets/people.png" },
         { name: "Plantilla de mensajes", icon: "/assets/device-message.png" },
         { name: "Estadísticas", icon: "/assets/graph.png" },
         { name: "Nueva solicitud", icon: "/assets/add-square.png" },
     ];
     
     if (isInstagramConnected) {
-        baseMenuItems.push({
-            name: "Gestionar Blacklist",
-            icon: <FaBan className="w-5 h-5 md:w-6 md:h-6 text-red-500" />
-        });
+        baseMenuItems.push(
+            { name: "Whitelist", icon: "/assets/people.png" },
+            {
+                name: "Gestionar Blacklist",
+                icon: <FaBan className="w-5 h-5 md:w-6 md:h-6 text-red-500" />
+            }
+        );
     }
     
     if (!isInstagramConnected) {

@@ -636,7 +636,7 @@ const BlacklistPanel = ({ user, onClose }) => {
                     <h2 className="text-2xl font-bold text-gray-800">Gestión de Listas Negras</h2>
                     <button 
                         onClick={onClose}
-                        className="text-gray-500 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100 transition"
+                        className="text-gray-500 hover:text-gray-800 p-2 rounded-full bg-transparent outline-none"
                     >
                         ✕
                     </button>
@@ -765,7 +765,7 @@ const BlacklistPanel = ({ user, onClose }) => {
                                                 placeholder="Buscar usuarios"
                                                 value={searchTerm}
                                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                                className="pl-10 p-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                className="pl-10 p-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                                             />
                                         </div>
                                     </div>
@@ -780,7 +780,7 @@ const BlacklistPanel = ({ user, onClose }) => {
                                             placeholder="Nombre de usuario"
                                             value={manualUsername}
                                             onChange={(e) => setManualUsername(e.target.value)}
-                                            className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            className="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
                                         />
                                         <button
                                             onClick={addUserToBlacklist}

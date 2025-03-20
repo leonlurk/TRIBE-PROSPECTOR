@@ -5,6 +5,8 @@ import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase
 import SendMediaComponent from "./SendMediaComponent"; 
 import logApiRequest from "../requestLogger"; // Import the logger utility
 import { checkBlacklistedUsers } from "../blacklistUtils";
+import { createCampaignOptions, startCampaignMonitoring } from "../campaignIntegration";
+import { createCampaign, updateCampaign } from "../campaignStore";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -345,13 +347,36 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         }
         
         setLoading(true);
+        
+        // Variables para campaña
+        let campaignId = null;
+        let stopMonitoring = null;
+        
         try {
-          // Log the follow users attempt
+          // Crear una campaña para esta operación
+          if (user && user.uid) {
+            const campaignOptions = createCampaignOptions({
+              type: "follow_users",
+              users: usersList,
+              endpoint: "/seguir_usuarios",
+              postLink: postLink
+            });
+            
+            campaignId = await createCampaign(user.uid, campaignOptions);
+            
+            // Iniciar monitoreo de la campaña
+            stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+              token: instagramToken
+            });
+          }
+          
+          // Log the follow users attempt (código existente - añadir campaignId)
           if (user) {
             await logApiRequest({
               endpoint: "/seguir_usuarios",
               requestData: { 
-                usuarios_count: usersList.length 
+                usuarios_count: usersList.length,
+                campaign_id: campaignId
               },
               userId: user.uid,
               status: "pending",
@@ -359,20 +384,35 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
               metadata: {
                 action: "follow_users",
                 usersCount: usersList.length,
-                postLink: postLink
+                postLink: postLink,
+                campaignId: campaignId
               }
             });
           }
           
-          // Verificar usuarios en blacklist antes de seguirlos
+          // Verificar usuarios en blacklist (código existente)
           const filteredUsers = await checkBlacklistedUsers(usersList, user, showNotification, "NuevaSolicitudPanel");
           
           if (filteredUsers.length === 0) {
             showNotification("Todos los usuarios están en listas negras. No se siguió a ningún usuario.", "warning");
+            
+            // Si se creó una campaña, actualizarla como cancelada
+            if (campaignId) {
+              await updateCampaign(user.uid, campaignId, {
+                status: "cancelled",
+                progress: 100,
+                endedAt: new Date(),
+                error: "Todos los usuarios están en listas negras"
+              });
+              
+              if (stopMonitoring) stopMonitoring();
+            }
+            
             setLoading(false);
             return;
           }
           
+          // Código existente para enviar la solicitud
           const response = await fetch(`${API_BASE_URL}/seguir_usuarios`, {
             method: "POST",
             headers: {
@@ -390,20 +430,32 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
       
           const data = await response.json();
           
-          // Log the response
+          // Actualizar campaña con información inicial
+          if (campaignId) {
+            await updateCampaign(user.uid, campaignId, {
+              progress: 10, // Inicio del proceso
+              initialResponse: data,
+              filteredUsers: filteredUsers.length,
+              blacklistedUsers: usersList.length - filteredUsers.length
+            });
+          }
+          
+          // Log the response (código existente - añadir campaignId)
           if (user) {
             await logApiRequest({
               endpoint: "/seguir_usuarios",
               requestData: { 
                 usuarios_count: usersList.length,
-                filtered_users_count: filteredUsers.length
+                filtered_users_count: filteredUsers.length,
+                campaign_id: campaignId
               },
               userId: user.uid,
               responseData: { 
                 status: data.status,
                 followedCount: data.followed_count || 0,
                 skippedCount: data.skipped_count || 0,
-                blacklistedCount: usersList.length - filteredUsers.length
+                blacklistedCount: usersList.length - filteredUsers.length,
+                campaignId: campaignId
               },
               status: data.status === "success" ? "success" : "completed",
               source: "NuevaSolicitudPanel",
@@ -414,23 +466,41 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 blacklistedCount: usersList.length - filteredUsers.length,
                 postLink: postLink,
                 followedCount: data.followed_count || 0,
-                skippedCount: data.skipped_count || 0
+                skippedCount: data.skipped_count || 0,
+                campaignId: campaignId
               }
             });
           }
           
-          showNotification("Seguimiento completado exitosamente", "success");
+          showNotification("Seguimiento en proceso", "success");
+          // Mostrar notificación adicional sobre la campaña creada
+          if (campaignId) {
+            showNotification("Se ha creado una campaña para seguir el progreso", "info");
+          }
           console.log(data);
         } catch (error) {
           showNotification("Error al seguir usuarios", "error");
           console.error("Ocurrió un error:", error);
           
-          // Log the error
+          // Actualizar campaña con el error
+          if (campaignId) {
+            await updateCampaign(user.uid, campaignId, {
+              status: "failed",
+              progress: 100,
+              error: error.message,
+              endedAt: new Date()
+            });
+            
+            if (stopMonitoring) stopMonitoring();
+          }
+          
+          // Log the error (código existente - añadir campaignId)
           if (user) {
             await logApiRequest({
               endpoint: "/seguir_usuarios",
               requestData: { 
-                usuarios_count: usersList.length 
+                usuarios_count: usersList.length,
+                campaign_id: campaignId
               },
               userId: user.uid,
               status: "error",
@@ -439,7 +509,8 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 action: "follow_users",
                 error: error.message,
                 usersCount: usersList.length,
-                postLink: postLink
+                postLink: postLink,
+                campaignId: campaignId
               }
             });
           }
@@ -448,7 +519,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         }
       };
 
-    const sendMessages = async () => {
+      const sendMessages = async () => {
         if (usersList.length === 0) {
           showNotification("No hay usuarios para enviar mensajes", "warning");
           return;
@@ -460,15 +531,39 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
         }
         
         setLoading(true);
+        
+        // Variables para campaña
+        let campaignId = null;
+        let stopMonitoring = null;
+        
         try {
-          // Log the send messages attempt
+          // Crear una campaña para esta operación
+          if (user && user.uid) {
+            const campaignOptions = createCampaignOptions({
+              type: "send_messages",
+              users: usersList,
+              endpoint: "/enviar_mensajes_multiple",
+              templateName: selectedTemplate?.name,
+              postLink: postLink
+            });
+            
+            campaignId = await createCampaign(user.uid, campaignOptions);
+            
+            // Iniciar monitoreo de la campaña
+            stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+              token: instagramToken
+            });
+          }
+          
+          // Log the send messages attempt (código existente)
           if (user) {
             await logApiRequest({
               endpoint: "/enviar_mensajes_multiple",
               requestData: { 
                 usuarios_count: usersList.length,
                 mensaje_length: message.length,
-                template_id: selectedTemplate?.id
+                template_id: selectedTemplate?.id,
+                campaign_id: campaignId
               },
               userId: user.uid,
               status: "pending",
@@ -479,20 +574,35 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 messageLength: message.length,
                 templateId: selectedTemplate?.id,
                 templateName: selectedTemplate?.name,
-                postLink: postLink
+                postLink: postLink,
+                campaignId: campaignId
               }
             });
           }
           
-          // Verificar usuarios en blacklist antes de enviar mensajes
+          // Verificar usuarios en blacklist (código existente)
           const filteredUsers = await checkBlacklistedUsers(usersList, user, showNotification, "NuevaSolicitudPanel");
           
           if (filteredUsers.length === 0) {
             showNotification("Todos los usuarios están en listas negras. No se enviaron mensajes.", "warning");
+            
+            // Si se creó una campaña, actualizarla como cancelada
+            if (campaignId) {
+              await updateCampaign(user.uid, campaignId, {
+                status: "cancelled",
+                progress: 100,
+                endedAt: new Date(),
+                error: "Todos los usuarios están en listas negras"
+              });
+              
+              if (stopMonitoring) stopMonitoring();
+            }
+            
             setLoading(false);
             return;
           }
           
+          // Código existente para enviar la solicitud
           const response = await fetch(`${API_BASE_URL}/enviar_mensajes_multiple`, {
             method: "POST",
             headers: {
@@ -511,7 +621,17 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
       
           const data = await response.json();
           
-          // Log the response
+          // Actualizar campaña con información inicial
+          if (campaignId) {
+            await updateCampaign(user.uid, campaignId, {
+              progress: 10, // Inicio del proceso
+              initialResponse: data,
+              filteredUsers: filteredUsers.length,
+              blacklistedUsers: usersList.length - filteredUsers.length
+            });
+          }
+          
+          // Log the response (código existente - añadir campaignId)
           if (user) {
             await logApiRequest({
               endpoint: "/enviar_mensajes_multiple",
@@ -519,14 +639,16 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 usuarios_count: usersList.length,
                 mensaje_length: message.length,
                 template_id: selectedTemplate?.id,
-                filtered_users_count: filteredUsers.length
+                filtered_users_count: filteredUsers.length,
+                campaign_id: campaignId
               },
               userId: user.uid,
               responseData: { 
                 status: data.status,
                 sentCount: data.sent_count || 0,
                 failedCount: data.failed_count || 0,
-                blacklistedCount: usersList.length - filteredUsers.length
+                blacklistedCount: usersList.length - filteredUsers.length,
+                campaignId: campaignId
               },
               status: data.status === "success" ? "success" : "completed",
               source: "NuevaSolicitudPanel",
@@ -540,25 +662,43 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 templateName: selectedTemplate?.name,
                 postLink: postLink,
                 sentCount: data.sent_count || 0,
-                failedCount: data.failed_count || 0
+                failedCount: data.failed_count || 0,
+                campaignId: campaignId
               }
             });
           }
           
           showNotification(`Mensajes enviados exitosamente a ${data.sent_count || 0} usuarios`, "success");
+          // Mostrar notificación adicional sobre la campaña creada
+          if (campaignId) {
+            showNotification("Se ha creado una campaña para seguir el progreso", "info");
+          }
           console.log(data);
         } catch (error) {
           showNotification("Error al enviar mensajes", "error");
           console.error("Ocurrió un error:", error);
           
-          // Log the error
+          // Actualizar campaña con el error
+          if (campaignId) {
+            await updateCampaign(user.uid, campaignId, {
+              status: "failed",
+              progress: 100,
+              error: error.message,
+              endedAt: new Date()
+            });
+            
+            if (stopMonitoring) stopMonitoring();
+          }
+          
+          // Log the error (código existente - añadir campaignId)
           if (user) {
             await logApiRequest({
               endpoint: "/enviar_mensajes_multiple",
               requestData: { 
                 usuarios_count: usersList.length,
                 mensaje_length: message.length,
-                template_id: selectedTemplate?.id
+                template_id: selectedTemplate?.id,
+                campaign_id: campaignId
               },
               userId: user.uid,
               status: "error",
@@ -570,7 +710,8 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 messageLength: message.length,
                 templateId: selectedTemplate?.id,
                 templateName: selectedTemplate?.name,
-                postLink: postLink
+                postLink: postLink,
+                campaignId: campaignId
               }
             });
           }

@@ -17,6 +17,7 @@ const getMenuItems = (isInstagramConnected) => {
     
     if (isInstagramConnected) {
         baseMenuItems.push(
+            { name: "Campañas", icon: "/assets/calendar.png" },  // Añadir esta línea
             { name: "Whitelist", icon: "/assets/people.png" },
             {
                 name: "Gestionar Blacklist",

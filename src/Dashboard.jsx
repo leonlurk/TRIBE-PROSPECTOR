@@ -12,6 +12,7 @@ import WhitelistPanel from "./components/WhitelistPanel";
 import BlacklistPanel from "./components/BlacklistPanel";
 import { checkBlacklistedUsers } from "./blacklistUtils";
 import { getInstagramSession, clearInstagramSession } from "./instagramSessionUtils";
+import CampaignsPanel from "./components/CampaignsPanel";
 
 
 const API_BASE_URL = "https://alets.com.ar";
@@ -53,6 +54,7 @@ const Dashboard = () => {
   const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [showSidebar, setShowSidebar] = useState(false);
   const [showBlacklistPanel, setShowBlacklistPanel] = useState(false);
+  const [showCampaignsPanel, setShowCampaignsPanel] = useState(false);
 
   // Notificación simple
   const showNotification = (message, type = "info") => {
@@ -368,6 +370,22 @@ const Dashboard = () => {
       return (
         <div className="flex justify-center items-center h-full">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      );
+    }
+
+    if (selectedOption === "Campañas") {
+      return (
+        <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
+          <h2 className="text-xl md:text-2xl font-bold mb-4 text-[#393346]">
+            Campañas en Progreso
+          </h2>
+          <CampaignsPanel 
+            user={user} 
+            onRefreshStats={() => {
+              // Opcional: Añade aquí lógica para actualizar estadísticas generales
+            }}
+          />
         </div>
       );
     }

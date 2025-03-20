@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import logApiRequest from '../requestLogger'; // Import the logger utility
 import { checkBlacklistedUsers } from "../blacklistUtils";
 import { db } from "../firebaseConfig";
+import { createCampaignOptions, startCampaignMonitoring } from '../campaignIntegration';
+import { createCampaign, updateCampaign } from '../campaignStore';
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -102,8 +104,30 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
         
         setLoading(true);
         
+        // Variables para campaña
+        let campaignId = null;
+        let stopMonitoring = null;
+        
         try {
-          // Log the send media request
+          // Crear una campaña para esta operación
+          if (user && user.uid) {
+            const campaignOptions = createCampaignOptions({
+              type: "send_media",
+              users: usersList,
+              endpoint: "/enviar_media",
+              mediaType: mediaType,
+              fileName: mediaFile.name
+            });
+            
+            campaignId = await createCampaign(user.uid, campaignOptions);
+            
+            // Iniciar monitoreo de la campaña
+            stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+              token: instagramToken
+            });
+          }
+          
+          // Log the send media request (código existente - añadir campaignId)
           if (user && user.uid) {
             await logApiRequest({
               endpoint: "/enviar_media",
@@ -114,7 +138,8 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                 file_type: mediaFile.type,
                 file_size: mediaFile.size,
                 skip_existing: skipExisting,
-                has_message: !!mediaMessage.trim()
+                has_message: !!mediaMessage.trim(),
+                campaign_id: campaignId
               },
               userId: user.uid,
               status: "pending",
@@ -126,21 +151,35 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                 fileSize: mediaFile.size,
                 fileName: mediaFile.name,
                 hasMessage: !!mediaMessage.trim(),
-                skipExisting: skipExisting
+                skipExisting: skipExisting,
+                campaignId: campaignId
               }
             });
           }
           
-          // Verificar usuarios en blacklist antes de enviar media
+          // Verificar usuarios en blacklist (código existente)
           const filteredUsers = await checkBlacklistedUsers(usersList, user, showNotification, "SendMediaComponent");
           
           if (filteredUsers.length === 0) {
             showNotification("Todos los usuarios están en listas negras. No se envió ningún medio.", "warning");
+            
+            // Si se creó una campaña, actualizarla como cancelada
+            if (campaignId) {
+              await updateCampaign(user.uid, campaignId, {
+                status: "cancelled",
+                progress: 100,
+                endedAt: new Date(),
+                error: "Todos los usuarios están en listas negras"
+              });
+              
+              if (stopMonitoring) stopMonitoring();
+            }
+            
             setLoading(false);
             return;
           }
           
-          // Crear FormData para enviar el archivo
+          // Código existente para crear FormData y enviar
           const formData = new FormData();
           formData.append("usuarios", filteredUsers.join(","));
           formData.append("media_type", mediaType);
@@ -167,7 +206,17 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
       
           const data = await response.json();
           
-          // Log the send media response
+          // Actualizar campaña con información inicial
+          if (campaignId) {
+            await updateCampaign(user.uid, campaignId, {
+              progress: 10, // Inicio del proceso
+              initialResponse: data,
+              filteredUsers: filteredUsers.length,
+              blacklistedUsers: usersList.length - filteredUsers.length
+            });
+          }
+          
+          // Log the send media response (código existente - añadir campaignId)
           if (user && user.uid) {
             await logApiRequest({
               endpoint: "/enviar_media",
@@ -179,7 +228,8 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                 file_type: mediaFile.type,
                 file_size: mediaFile.size,
                 skip_existing: skipExisting,
-                has_message: !!mediaMessage.trim()
+                has_message: !!mediaMessage.trim(),
+                campaign_id: campaignId
               },
               userId: user.uid,
               responseData: { 
@@ -187,7 +237,8 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                 sent_count: data.sent_count || 0,
                 failed_count: data.failed_count || 0,
                 skipped_count: data.skipped_count || 0,
-                blacklisted_count: usersList.length - filteredUsers.length
+                blacklisted_count: usersList.length - filteredUsers.length,
+                campaignId: campaignId
               },
               status: data.status === "success" ? "success" : "completed",
               source: "SendMediaComponent",
@@ -203,13 +254,18 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                 skipExisting: skipExisting,
                 sentCount: data.sent_count || 0,
                 failedCount: data.failed_count || 0,
-                skippedCount: data.skipped_count || 0
+                skippedCount: data.skipped_count || 0,
+                campaignId: campaignId
               }
             });
           }
           
           if (data.status === "success") {
             showNotification(`Medios enviados exitosamente a ${data.sent_count || 0} usuarios`, "success");
+            // Mostrar notificación adicional sobre la campaña creada
+            if (campaignId) {
+              showNotification("Se ha creado una campaña para seguir el progreso", "info");
+            }
             clearFileSelection();
             setMediaMessage("");
           } else {
@@ -222,7 +278,19 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
           console.error("Error al enviar medios:", error);
           showNotification("Error al enviar medios: " + (error.message || "Error desconocido"), "error");
           
-          // Log the error
+          // Actualizar campaña con el error
+          if (campaignId) {
+            await updateCampaign(user.uid, campaignId, {
+              status: "failed",
+              progress: 100,
+              error: error.message,
+              endedAt: new Date()
+            });
+            
+            if (stopMonitoring) stopMonitoring();
+          }
+          
+          // Log the error (código existente - añadir campaignId)
           if (user && user.uid) {
             await logApiRequest({
               endpoint: "/enviar_media",
@@ -233,7 +301,8 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                 file_type: mediaFile.type,
                 file_size: mediaFile.size,
                 skip_existing: skipExisting,
-                has_message: !!mediaMessage.trim()
+                has_message: !!mediaMessage.trim(),
+                campaign_id: campaignId
               },
               userId: user.uid,
               status: "error",
@@ -246,7 +315,8 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                 fileSize: mediaFile.size,
                 fileName: mediaFile.name,
                 hasMessage: !!mediaMessage.trim(),
-                skipExisting: skipExisting
+                skipExisting: skipExisting,
+                campaignId: campaignId
               }
             });
           }

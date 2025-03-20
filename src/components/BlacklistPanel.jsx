@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import PropTypes from 'prop-types';
 import { db } from "../firebaseConfig";
-import { collection, addDoc, getDocs, doc, deleteDoc, query, where } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, deleteDoc, query, where, setDoc } from "firebase/firestore";
 import { FaPlus, FaTrash, FaSearch } from "react-icons/fa";
 import logApiRequest from "../requestLogger";
 
@@ -27,7 +27,7 @@ const BlacklistPanel = ({ user, onClose }) => {
     // Cargar las listas negras del usuario
     const fetchBlacklists = async () => {
         if (!user || !user.uid) return;
-
+    
         try {
             setIsLoading(true);
             
@@ -45,7 +45,22 @@ const BlacklistPanel = ({ user, onClose }) => {
             
             const blacklistsRef = collection(db, "users", user.uid, "blacklists");
             const blacklistsSnapshot = await getDocs(blacklistsRef);
-            const blacklistsList = blacklistsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            let blacklistsList = blacklistsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Contar los usuarios de cada blacklist y actualizar el campo userCount
+            for (let blacklist of blacklistsList) {
+                const usersRef = collection(db, "users", user.uid, "blacklists", blacklist.id, "users");
+                const usersSnapshot = await getDocs(usersRef);
+                const userCount = usersSnapshot.docs.length;
+                
+                // Actualizar el campo userCount en Firestore
+                await setDoc(doc(db, "users", user.uid, "blacklists", blacklist.id), 
+                    { userCount }, { merge: true });
+                    
+                // Actualizar el objeto blacklist para el estado local
+                blacklist.userCount = userCount;
+            }
+            
             setBlacklists(blacklistsList);
             
             // If there are lists, select the first one by default
@@ -344,7 +359,7 @@ const BlacklistPanel = ({ user, onClose }) => {
     // Eliminar un usuario de la lista negra
     const deleteUserFromBlacklist = async (userId) => {
         if (!user || !user.uid || !selectedBlacklist || !selectedBlacklist.id) return;
-
+    
         try {
             setIsLoading(true);
             
@@ -371,10 +386,17 @@ const BlacklistPanel = ({ user, onClose }) => {
             const updatedUsers = blacklistUsers.filter(user => user.id !== userId);
             setBlacklistUsers(updatedUsers);
             
+            // Calcular el nuevo recuento de usuarios
+            const newUserCount = Math.max(0, (selectedBlacklist.userCount || 0) - 1);
+            
+            // Actualizar el contador de usuarios en el documento de la blacklist en Firestore
+            await setDoc(doc(db, "users", user.uid, "blacklists", selectedBlacklist.id), 
+                { userCount: newUserCount }, { merge: true });
+            
             // Actualizar el contador en la lista de blacklists
             const updatedBlacklists = blacklists.map(list => {
                 if (list.id === selectedBlacklist.id) {
-                    return { ...list, userCount: (list.userCount || 0) - 1 };
+                    return { ...list, userCount: newUserCount };
                 }
                 return list;
             });
@@ -384,7 +406,7 @@ const BlacklistPanel = ({ user, onClose }) => {
             // Actualizar el selectedBlacklist
             setSelectedBlacklist({
                 ...selectedBlacklist,
-                userCount: (selectedBlacklist.userCount || 0) - 1
+                userCount: newUserCount
             });
             
             showNotification("Usuario eliminado de la lista negra", "success");
@@ -404,7 +426,7 @@ const BlacklistPanel = ({ user, onClose }) => {
                     blacklistId: selectedBlacklist.id,
                     blacklistUserId: userId,
                     blacklistName: selectedBlacklist.name,
-                    updatedUserCount: (selectedBlacklist.userCount || 0) - 1
+                    updatedUserCount: newUserCount
                 }
             });
         } catch (error) {
@@ -516,10 +538,15 @@ const BlacklistPanel = ({ user, onClose }) => {
             
             setBlacklistUsers([...blacklistUsers, newUser]);
             
+            // Actualizar contador en la lista negra en Firestore
+            const newUserCount = (selectedBlacklist.userCount || 0) + 1;
+            await setDoc(doc(db, "users", user.uid, "blacklists", selectedBlacklist.id), 
+                { userCount: newUserCount }, { merge: true });
+            
             // Actualizar contador en la lista
             const updatedBlacklists = blacklists.map(list => {
                 if (list.id === selectedBlacklist.id) {
-                    return { ...list, userCount: (list.userCount || 0) + 1 };
+                    return { ...list, userCount: newUserCount };
                 }
                 return list;
             });
@@ -529,7 +556,7 @@ const BlacklistPanel = ({ user, onClose }) => {
             // Actualizar selectedBlacklist
             setSelectedBlacklist({
                 ...selectedBlacklist,
-                userCount: (selectedBlacklist.userCount || 0) + 1
+                userCount: newUserCount
             });
             
             setManualUsername("");

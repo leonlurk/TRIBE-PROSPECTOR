@@ -1065,8 +1065,8 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                 <button
                                     className={`inline-block py-3 px-5 border-b-2 font-medium text-sm ${
                                         activeTab === 'message' 
-                                            ? 'border-[#5468FF]' 
-                                            : 'text-white bg-[#5468FF] hover:bg-[#4356cc]'
+                                            ? 'border-[#5468FF] bg-white text-[#5468FF]' 
+                                            : 'border-transparent text-white bg-[#5468FF] hover:bg-[#4356cc]'
                                     }`}
                                     onClick={() => {
                                         setActiveTab('message');
@@ -1096,7 +1096,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                 <button
                                     className={`inline-block py-3 px-5 border-b-2 font-medium text-sm ${
                                         activeTab === 'media' 
-                                            ? 'border-[#5468FF]' 
+                                            ? 'border-[#5468FF] bg-white text-[#5468FF]' 
                                             : 'border-transparent text-white bg-[#5468FF] hover:bg-[#4356cc]'
                                     }`}
                                     onClick={() => {

@@ -576,8 +576,8 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                 requestData: { 
                   usuarios_count: usersList.length,
                   mensaje_length: message.length,
-                  template_id: selectedTemplate ? selectedTemplate.id : null, // Evitar undefined
-                  campaign_id: campaignId
+                  template_id: selectedTemplate ? selectedTemplate.id : null, // Usar null en lugar de undefined
+                  campaign_id: campaignId || null // Asegurar que campaignId no sea undefined
                 },
                 userId: user.uid,
                 status: "pending",
@@ -586,10 +586,10 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                   action: "send_messages",
                   usersCount: usersList.length,
                   messageLength: message.length,
-                  templateId: selectedTemplate ? selectedTemplate.id : null, // Evitar undefined
-                  templateName: selectedTemplate ? selectedTemplate.name : null, // Evitar undefined
-                  postLink: postLink,
-                  campaignId: campaignId
+                  templateId: selectedTemplate ? selectedTemplate.id : null, // Asegurar que no es undefined
+                  templateName: selectedTemplate ? selectedTemplate.name : null, 
+                  postLink: postLink || null, // Asegurar que no es undefined
+                  campaignId: campaignId || null // Asegurar que no es undefined
                 }
               });
           }

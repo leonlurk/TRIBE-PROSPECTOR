@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import { getActiveCampaigns, getRecentCampaigns, cancelCampaign } from "../campaignStore";
 import { FaSpinner, FaCheckCircle, FaTimesCircle, FaInfoCircle, FaExclamationTriangle, FaStopCircle, FaClock } from "react-icons/fa";
 import logApiRequest from "../requestLogger";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../firebaseConfig";
 
 // Utilidad para formatear tiempo transcurrido
 const formatElapsedTime = (startDate, endDate = new Date()) => {
@@ -98,6 +100,34 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
       fetchCampaigns();
     }
   }, [fetchCampaigns, refreshKey, user]);
+
+  useEffect(() => {
+    const debugCampaigns = async () => {
+      if (user?.uid) {
+        try {
+          const campaignsRef = collection(db, "users", user.uid, "campaigns");
+          const snapshot = await getDocs(campaignsRef);
+          const allCampaigns = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          console.log("TODAS LAS CAMPAÑAS:", allCampaigns);
+          
+          // Filtrar manualmente para ver qué campañas deberían estar activas
+          const activeCampaigns = allCampaigns.filter(c => c.status === "processing");
+          console.log("CAMPAÑAS PROCESANDO:", activeCampaigns);
+          
+          // Ver otras posibles campañas activas con otros estados
+          const otherStatuses = [...new Set(allCampaigns.map(c => c.status))];
+          console.log("ESTADOS ENCONTRADOS:", otherStatuses);
+        } catch (error) {
+          console.error("Error al obtener todas las campañas:", error);
+        }
+      }
+    };
+    
+    debugCampaigns();
+  }, [user]);
 
   // Programar actualizaciones periódicas si hay campañas activas
   useEffect(() => {

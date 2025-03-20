@@ -3,6 +3,39 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "./firebaseConfig";
 
 /**
+ * Función auxiliar que reemplaza valores undefined con null de forma recursiva
+ * @param {Object|Array|any} data - Los datos a limpiar
+ * @returns {Object|Array|any} - Datos sin valores undefined
+ */
+const removeUndefined = (data) => {
+  // Si es null o undefined, devolver null
+  if (data === null || data === undefined) return null;
+  
+  // Si no es un objeto o array, devolver el valor tal cual
+  if (typeof data !== 'object') return data;
+  
+  // Para arrays y objetos, procesar recursivamente
+  const result = Array.isArray(data) ? [] : {};
+  
+  Object.keys(data).forEach(key => {
+    const value = data[key];
+    
+    if (value === undefined) {
+      // Reemplazar undefined con null
+      result[key] = null;
+    } else if (typeof value === 'object' && value !== null) {
+      // Procesar recursivamente objetos y arrays
+      result[key] = removeUndefined(value);
+    } else {
+      // Mantener otros valores como están
+      result[key] = value;
+    }
+  });
+  
+  return result;
+};
+
+/**
  * Logs API requests to Firestore for tracking and analytics purposes
  * @param {Object} options - The logging options
  * @param {string} options.endpoint - The API endpoint that was called
@@ -32,8 +65,12 @@ export const logApiRequest = async ({
       return null;
     }
 
-    // Sanitize request data to remove sensitive information
-    const sanitizedRequestData = sanitizeRequestData(requestData);
+    // Limpiar undefined y sanitizar
+    const cleanRequestData = removeUndefined(requestData || {});
+    const sanitizedRequestData = sanitizeRequestData(cleanRequestData);
+    
+    // Limpiar metadata de valores undefined
+    const cleanMetadata = removeUndefined(metadata || {});
     
     // Create the log entry
     const logData = {
@@ -43,7 +80,7 @@ export const logApiRequest = async ({
       timestamp: serverTimestamp(),
       source,
       metadata: {
-        ...metadata,
+        ...cleanMetadata,
         userAgent: navigator.userAgent,
         appVersion: "1.0.0" // You can replace this with a proper version value
       }
@@ -51,7 +88,8 @@ export const logApiRequest = async ({
     
     // Add response data if provided
     if (responseData) {
-      logData.responseData = sanitizeResponseData(responseData);
+      const cleanResponseData = removeUndefined(responseData);
+      logData.responseData = sanitizeResponseData(cleanResponseData);
     }
 
     // Add to user's request logs collection

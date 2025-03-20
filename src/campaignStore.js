@@ -23,7 +23,7 @@ export const createCampaign = async (userId, campaignData) => {
       ...campaignData,
       createdAt: new Date(),
       lastUpdated: new Date(),
-      status: "processing", // processing, completed, failed
+      status: "processing", 
       progress: 0,
       totalProcessed: 0
     };

@@ -2,6 +2,7 @@
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
+
 /**
  * Guarda los datos de sesión de Instagram en Firebase y localStorage
  * @param {string} userId - ID del usuario en Firebase
@@ -9,69 +10,88 @@ import { db } from "./firebaseConfig";
  * @returns {Promise<boolean>} - True si se guardó correctamente
  */
 export const saveInstagramSession = async (userId, sessionData) => {
-  if (!userId || !sessionData) {
-    console.error("Error: userId y sessionData son obligatorios");
-    return false;
-  }
-
-  try {
-    // Datos a guardar en Firebase
-    const dataToSave = {
-      instagramToken: sessionData.token || null,
-      instagramUsername: sessionData.username || null,
-      instagramDeviceId: sessionData.deviceId || null,
-      instagramConnected: true,
-      instagramLastLogin: new Date(),
-    };
-
-    // Si hay cookies, las guardamos como string
-    if (sessionData.cookies) {
-      dataToSave.instagramCookies = 
-        typeof sessionData.cookies === 'string' 
-          ? sessionData.cookies 
-          : JSON.stringify(sessionData.cookies);
+    console.log("saveInstagramSession llamado con userId:", userId);
+    console.log("sessionData:", JSON.stringify(sessionData, null, 2));
+  
+    if (!userId || !sessionData) {
+      console.error("Error: userId y sessionData son obligatorios");
+      return false;
     }
-
-    // Guardar en Firebase
-    const userRef = doc(db, "users", userId);
-    
-    // Verificar si el documento existe y hacer merge para no sobrescribir otros datos
-    const userDoc = await getDoc(userRef);
-    if (userDoc.exists()) {
-      await setDoc(userRef, dataToSave, { merge: true });
-    } else {
-      await setDoc(userRef, {
-        ...dataToSave,
-        createdAt: new Date()
-      });
+  
+    try {
+      // Datos a guardar en Firebase
+      const dataToSave = {
+        instagramToken: sessionData.token || null,
+        instagramUsername: sessionData.username || null,
+        instagramDeviceId: sessionData.deviceId || null,
+        instagramConnected: true,
+        instagramLastLogin: new Date(),
+      };
+  
+      console.log("Datos a guardar en Firebase:", JSON.stringify(dataToSave, null, 2));
+  
+      // Si hay cookies, las guardamos como string
+      if (sessionData.cookies) {
+        dataToSave.instagramCookies = 
+          typeof sessionData.cookies === 'string' 
+            ? sessionData.cookies 
+            : JSON.stringify(sessionData.cookies);
+      }
+  
+      // Guardar en Firebase
+      const userRef = doc(db, "users", userId);
+      console.log("Referencia de documento creada para:", userId);
+      
+      try {
+        // Verificar si el documento existe
+        const userDoc = await getDoc(userRef);
+        console.log("Documento existe:", userDoc.exists());
+        
+        if (userDoc.exists()) {
+          console.log("Actualizando documento existente con merge");
+          await setDoc(userRef, dataToSave, { merge: true });
+        } else {
+          console.log("Creando nuevo documento de usuario");
+          await setDoc(userRef, {
+            ...dataToSave,
+            createdAt: new Date()
+          });
+        }
+        console.log("Operación de escritura en Firestore completada");
+      } catch (firestoreError) {
+        console.error("Error específico de Firestore:", firestoreError);
+        throw firestoreError;
+      }
+  
+      // Guardar en localStorage para acceso rápido
+      if (sessionData.token) {
+        localStorage.setItem("instagram_bot_token", sessionData.token);
+      }
+      if (sessionData.username) {
+        localStorage.setItem("instagram_username", sessionData.username);
+      }
+      if (sessionData.deviceId) {
+        localStorage.setItem("instagram_device_id", sessionData.deviceId);
+      }
+      if (sessionData.cookies) {
+        localStorage.setItem(
+          "instagram_cookies", 
+          typeof sessionData.cookies === 'string' 
+            ? sessionData.cookies 
+            : JSON.stringify(sessionData.cookies)
+        );
+      }
+  
+      console.log("Sesión de Instagram guardada correctamente en Firebase");
+      return true;
+    } catch (error) {
+      console.error("Error al guardar la sesión de Instagram:", error);
+      console.error("Tipo de error:", error.name);
+      console.error("Mensaje de error:", error.message);
+      console.error("Stack:", error.stack);
+      return false;
     }
-
-    // Guardar en localStorage para acceso rápido
-    if (sessionData.token) {
-      localStorage.setItem("instagram_bot_token", sessionData.token);
-    }
-    if (sessionData.username) {
-      localStorage.setItem("instagram_username", sessionData.username);
-    }
-    if (sessionData.deviceId) {
-      localStorage.setItem("instagram_device_id", sessionData.deviceId);
-    }
-    if (sessionData.cookies) {
-      localStorage.setItem(
-        "instagram_cookies", 
-        typeof sessionData.cookies === 'string' 
-          ? sessionData.cookies 
-          : JSON.stringify(sessionData.cookies)
-      );
-    }
-
-    console.log("Sesión de Instagram guardada correctamente en Firebase");
-    return true;
-  } catch (error) {
-    console.error("Error al guardar la sesión de Instagram:", error);
-    return false;
-  }
-};
+  };
 
 /**
  * Obtiene los datos de sesión de Instagram desde Firebase

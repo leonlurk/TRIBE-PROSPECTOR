@@ -4,6 +4,7 @@ import logApiRequest from "../requestLogger";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import { saveInstagramSession } from "../instagramSessionUtils"; 
+import { db } from "./firebaseConfig";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -238,21 +239,25 @@ const Instagram2FAVerification = ({
         }
         
         // Guardar en Firebase para persistencia
-        if (user) {
-          try {
-            await saveInstagramSession(user.uid, {
-              token: data.token,
-              username: data.username || username,
-              deviceId: data.device_id || deviceId,
-              cookies: data.cookies
-            });
-            
-            console.log("Sesión de Instagram guardada en Firebase correctamente después de 2FA");
-          } catch (firebaseError) {
-            console.error("Error al guardar sesión en Firebase después de 2FA:", firebaseError);
-            // No interrumpir el flujo si falla
-          }
-        }
+        // Guardar en Firebase para persistencia con verificación mejorada
+if (user && user.uid) {
+  console.log("Intentando guardar con UID después de 2FA:", user.uid);
+  try {
+    await saveInstagramSession(user.uid, {
+      token: data.token,
+      username: data.username || username,
+      deviceId: data.device_id || deviceId,
+      cookies: data.cookies
+    });
+    
+    console.log("Sesión de Instagram guardada en Firebase correctamente después de 2FA");
+  } catch (firebaseError) {
+    console.error("Error al guardar sesión en Firebase después de 2FA:", firebaseError);
+    console.error("Detalles del error:", JSON.stringify(firebaseError));
+  }
+} else {
+  console.error("No se puede guardar en Firebase después de 2FA: usuario o UID no definido", user);
+}
         
         showSnackbar("¡Verificación exitosa!", "success");
       

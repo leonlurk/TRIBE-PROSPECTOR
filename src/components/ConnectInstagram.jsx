@@ -5,6 +5,7 @@ import logApiRequest from "../requestLogger"; // Import the logger utility
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import { saveInstagramSession } from "../instagramSessionUtils";
+import { db } from "./firebaseConfig";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -195,7 +196,8 @@ const ConnectInstagram = ({
         }
         
         // Añadir esta sección para guardar en Firebase
-        if (user) {
+        if (user && user.uid) {
+          console.log("Intentando guardar con UID:", user.uid);
           try {
             await saveInstagramSession(user.uid, {
               token: data.token,
@@ -207,8 +209,10 @@ const ConnectInstagram = ({
             console.log("Sesión de Instagram guardada en Firebase correctamente");
           } catch (firebaseError) {
             console.error("Error al guardar sesión en Firebase:", firebaseError);
-            // No interrumpir el flujo si falla
+            console.error("Detalles del error:", JSON.stringify(firebaseError));
           }
+        } else {
+          console.error("No se puede guardar en Firebase: usuario o UID no definido", user);
         }
         
         showSnackbar("Conexión exitosa", "success");

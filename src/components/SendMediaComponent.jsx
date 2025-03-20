@@ -330,13 +330,13 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
             <h3 className="text-lg font-semibold mb-4">Enviar Media</h3>
             
             <div className="mb-4">
-                <label className="block text-sm font-medium bg-[#FFFFFF] text-black mb-1">
+                <label className="block text-sm font-medium text-black mb-1">
                     Tipo de Media
                 </label>
                 <select
                     value={mediaType}
                     onChange={(e) => setMediaType(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2 border border-gray-300 rounded-md bg-white text-black"
                     disabled={loading}
                 >
                     <option value="photo">Imagen</option>
@@ -423,7 +423,7 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
                     value={mediaMessage}
                     onChange={(e) => setMediaMessage(e.target.value)}
                     placeholder="Escribe un mensaje para acompañar tu archivo..."
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2 border border-gray-300 rounded-md bg-white text-black"
                     rows="3"
                     disabled={loading}
                 />

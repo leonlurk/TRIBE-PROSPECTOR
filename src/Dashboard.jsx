@@ -674,18 +674,19 @@ const Dashboard = () => {
 
       {/* Sidebar adaptativo */}
       <div
-        className={`fixed md:static h-screen z-40 transition-all duration-300 transform ${
-          showSidebar ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 md:flex md:h-screen md:z-auto`}
-      >
-        <Sidebar
-          selectedOption={selectedOption}
-          setSelectedOption={(option) => {
-            setSelectedOption(option);
-            setShowSidebar(false);
-          }}
-        />
-      </div>
+  className={`fixed md:static h-screen z-40 transition-all duration-300 transform ${
+    showSidebar ? "translate-x-0" : "-translate-x-full"
+  } md:translate-x-0 md:flex md:h-screen md:z-auto`}
+>
+  <Sidebar
+    selectedOption={selectedOption}
+    setSelectedOption={(option) => {
+      setSelectedOption(option);
+      setShowSidebar(false);
+    }}
+    isInstagramConnected={isInstagramConnected}
+  />
+</div>
 
       <div className="flex-1 p-2 md:p-6 overflow-auto pt-16 md:pt-6">{renderContent()}</div>
 

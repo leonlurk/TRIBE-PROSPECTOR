@@ -8,14 +8,25 @@ import { db } from "./firebaseConfig";
 
 const logoPath = "/LogoNegro.png";
 
-// NUEVA lista de iconos desde assets
-const menuItems = [
-    { name: "Whitelist", icon: "/assets/people.png" },
-    { name: "Plantilla de mensajes", icon: "/assets/device-message.png" },
-    { name: "Estadísticas", icon: "/assets/graph.png" },
-    { name: "Nueva solicitud", icon: "/assets/add-square.png" },
-    { name: "Conectar Instagram", icon: <FaInstagram className="w-5 h-5 md:w-6 md:h-6" /> }
-];
+// We'll filter these items based on the isInstagramConnected prop
+const getMenuItems = (isInstagramConnected) => {
+    const baseMenuItems = [
+        { name: "Whitelist", icon: "/assets/people.png" },
+        { name: "Plantilla de mensajes", icon: "/assets/device-message.png" },
+        { name: "Estadísticas", icon: "/assets/graph.png" },
+        { name: "Nueva solicitud", icon: "/assets/add-square.png" },
+    ];
+    
+    // Only add "Conectar Instagram" if Instagram is not connected
+    if (!isInstagramConnected) {
+        baseMenuItems.push({ 
+            name: "Conectar Instagram", 
+            icon: <FaInstagram className="w-5 h-5 md:w-6 md:h-6" /> 
+        });
+    }
+    
+    return baseMenuItems;
+};
 
 const bottomItems = [
     { name: "Documentos", icon: "/assets/mobile-programming.png" },
@@ -23,10 +34,12 @@ const bottomItems = [
     { name: "Ajustes", icon: "/assets/setting-2.png" }
 ];
 
-const Sidebar = ({ selectedOption = "", setSelectedOption = () => {} }) => {
+const Sidebar = ({ selectedOption = "", setSelectedOption = () => {}, isInstagramConnected = false }) => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState({});
+    // Get filtered menu items based on Instagram connection status
+    const menuItems = getMenuItems(isInstagramConnected);
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -39,6 +52,7 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {} }) => {
     
         return () => unsubscribe();
     }, []);
+    
     const fetchUserData = async (uid) => {
         const userRef = doc(db, "users", uid);  // Asegúrate de apuntar al nombre correcto de tu colección
         const docSnap = await getDoc(userRef);
@@ -50,7 +64,6 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {} }) => {
         }
     };
     
-
     const handleLogout = async () => {
         try {
             await auth.signOut();
@@ -148,12 +161,14 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {} }) => {
 
 Sidebar.propTypes = {
     selectedOption: PropTypes.string,
-    setSelectedOption: PropTypes.func
+    setSelectedOption: PropTypes.func,
+    isInstagramConnected: PropTypes.bool
 };
 
 Sidebar.defaultProps = {
     selectedOption: "",
-    setSelectedOption: () => {}
+    setSelectedOption: () => {},
+    isInstagramConnected: false
 };
 
 export default Sidebar;

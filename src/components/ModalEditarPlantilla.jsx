@@ -16,7 +16,8 @@ const ModalEditarPlantilla = ({
   setNewTemplate,
   setNewTemplateBody,
   selectedType = "Plantillas de mensajes",
-  setSelectedType
+  setSelectedType,
+  setSelectedPlatform
 }) => {
     // Inicializa estados considerando ambos casos (props individuales o objeto template)
     const [nombre, setNombre] = useState(isCreateMode ? name : (template.name || ""));
@@ -266,7 +267,14 @@ const ModalEditarPlantilla = ({
                 <select
                     className="w-full p-2 md:p-3 mt-1 mb-3 md:mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700 text-sm md:text-base"
                     value={plataforma}
-                    onChange={(e) => setPlataforma(e.target.value)}
+                    onChange={(e) => {
+                        const value = e.target.value;
+                        setPlataforma(value);
+                        // Actualizar también la plataforma en el componente padre si estamos en modo creación
+                        if (isCreateMode && setSelectedPlatform) {
+                            setSelectedPlatform(value);
+                        }
+                    }}
                     disabled={isLoading}
                 >
                     <option value="">Seleccionar plataforma...</option>
@@ -356,7 +364,8 @@ ModalEditarPlantilla.propTypes = {
     setNewTemplate: PropTypes.func,
     setNewTemplateBody: PropTypes.func,
     selectedType: PropTypes.string,
-    setSelectedType: PropTypes.func
+    setSelectedType: PropTypes.func,
+    setSelectedPlatform: PropTypes.func 
 };
 
 ModalEditarPlantilla.defaultProps = {

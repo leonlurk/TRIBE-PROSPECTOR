@@ -739,6 +739,7 @@ const Dashboard = () => {
     setNewTemplateBody={setNewTemplateBody}
     selectedType={selectedType}
     setSelectedType={setSelectedType}
+    setSelectedPlatform={setSelectedPlatform} // Añadir esta nueva prop
   />
 )}
 

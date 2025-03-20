@@ -99,7 +99,7 @@ export const verifySSOToken = functionsV1.https.onRequest(async (req, res) => {
       if (error.code === 'auth/user-not-found') {
         const newUser = await getAuth().createUser({
           email: email,
-          displayName: name,
+          displayName: nombre,
         });
         uid = newUser.uid;
       } else {

@@ -322,7 +322,7 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
         <h2 className="text-lg font-semibold">Campañas Activas</h2>
         <button
           onClick={() => setRefreshKey(prev => prev + 1)}
-          className="text-blue-500 hover:text-blue-700 text-sm"
+          className="text-white bg-blue-500 text-sm"
         >
           Actualizar
         </button>

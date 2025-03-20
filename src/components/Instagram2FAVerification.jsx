@@ -4,7 +4,6 @@ import logApiRequest from "../requestLogger";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import { saveInstagramSession } from "../instagramSessionUtils"; 
-import { db } from "./firebaseConfig";
 
 const API_BASE_URL = "https://alets.com.ar";
 

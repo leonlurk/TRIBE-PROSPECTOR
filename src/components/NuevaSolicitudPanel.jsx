@@ -743,12 +743,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                     placeholder="Pega el link de la publicación"
                     value={postLink}
                     onChange={(e) => setPostLink(e.target.value)}
-                    className="w-full p-3 rounded-md border"
-                    style={{
-                        backgroundColor: '#FAFAFA',
-                        borderColor: '#A6A6A6',
-                        color: '#393346',
-                    }}
+                    className="w-full p-3 rounded-md border border-[#A6A6A6] bg-[#FAFAFA] text-[#393346] focus:outline-none focus:ring-1 focus:ring-[#5468FF]"
                 />
                 <div className="flex flex-wrap gap-2 mt-2">
                     <button
@@ -756,7 +751,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                         disabled={loading || !postLink.trim()}
                         className="px-6 py-3 rounded-full font-semibold flex items-center"
                         style={{
-                            backgroundColor: loading || !postLink.trim() ? '#A6A6A6' : '#393346',
+                            backgroundColor: loading || !postLink.trim() ? '#A6A6A6' : '#5468FF',
                             color: '#FFFFFF',
                             cursor: loading || !postLink.trim() ? 'not-allowed' : 'pointer',
                         }}
@@ -983,12 +978,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                     placeholder="Escribe un mensaje para enviar"
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
-                                    className="w-full p-3 rounded-md border"
-                                    style={{
-                                        backgroundColor: '#FAFAFA',
-                                        borderColor: '#A6A6A6',
-                                        color: '#393346',
-                                    }}
+                                    className="w-full p-3 rounded-md border border-[#A6A6A6] bg-[#FAFAFA] text-[#393346] focus:outline-none focus:ring-1 focus:ring-[#5468FF]"
                                     rows="5"
                                 />
                                 <div className="flex justify-between items-center mt-2">

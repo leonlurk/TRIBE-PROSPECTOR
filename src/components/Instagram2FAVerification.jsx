@@ -467,7 +467,7 @@ if (user && user.uid) {
               setVerificationCode(onlyDigits);
             }
           }}
-          className="w-full p-2 md:p-3 border border-gray-300 rounded-md mb-1 text-black placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm md:text-base"
+          className="w-full p-2 md:p-3 border border-[#A6A6A6] rounded-md mb-1 text-[#393346] placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-[#5468FF] text-sm md:text-base"
           maxLength={6}
           autoFocus
         />

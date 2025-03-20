@@ -342,7 +342,7 @@ const RequestLogsDashboard = ({ user }) => {
           <h2 className="text-lg font-semibold">Filtros</h2>
           <button 
             onClick={resetFilters} 
-            className="ml-auto text-blue-500 hover:text-blue-700 flex items-center text-sm"
+           className="ml-auto text-[#5468FF] hover:text-[#4356cc] flex items-center text-sm"
           >
             <FaSync className="mr-1" /> Resetear
           </button>
@@ -416,7 +416,7 @@ const RequestLogsDashboard = ({ user }) => {
                 placeholder="Buscar en los logs..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full p-2 pl-10 border border-[#A6A6A6] rounded-md bg-white text-[#393346] focus:outline-none focus:ring-1 focus:ring-[#5468FF]"
               />
             </div>
           </div>

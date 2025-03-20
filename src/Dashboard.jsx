@@ -371,7 +371,7 @@ const Dashboard = () => {
         </div>
       );
     }
-    
+
     if (selectedOption === "Gestionar Blacklist") {
       return (
         <BlacklistPanel
@@ -431,7 +431,7 @@ const Dashboard = () => {
                 placeholder="Buscar Plantilla"
                 value={searchQuery}
                 onChange={(e) => searchTemplates(e.target.value)}
-                className="p-3 md:p-4 pl-14 border border-gray-300 rounded-full w-full bg-white shadow-sm text-gray-600 focus:outline-none"
+                className="p-3 md:p-4 pl-14 border border-[#A6A6A6] rounded-full w-full bg-white shadow-sm text-[#393346] focus:outline-none focus:ring-1 focus:ring-[#5468FF]"
               />
             </div>
             <div className="flex flex-wrap gap-2 md:gap-4">

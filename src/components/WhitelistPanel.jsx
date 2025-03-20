@@ -471,7 +471,7 @@ const WhitelistPanel = ({ user }) => {
                         <h2 className="text-xl font-semibold text-gray-800">Mis Listas</h2>
                         <button
                             onClick={() => setIsCreatingWhitelist(true)}
-                            className="p-2 bg-[#5468FF] text-black rounded-full hover:bg-[#4356cc] transition"
+                            className="p-2 bg-[#5468FF] text-white rounded-full hover:bg-[#4356cc] transition"
                         >
                             <FaPlus />
                         </button>
@@ -484,13 +484,13 @@ const WhitelistPanel = ({ user }) => {
                                 placeholder="Nombre de la lista"
                                 value={newWhitelistName}
                                 onChange={(e) => setNewWhitelistName(e.target.value)}
-                                className="w-full p-2 border border-gray-300 rounded mb-2 bg-white text-black"
+                                className="w-full p-2 border border-[#A6A6A6] rounded mb-2 bg-white text-[#393346] focus:outline-none focus:ring-1 focus:ring-[#5468FF]"
                             />
                             <div className="flex space-x-2">
                                 <button
                                     onClick={createWhitelist}
                                     disabled={isLoading || !newWhitelistName.trim()}
-                                    className="flex-1 bg-[#5468FF] text-black py-1 rounded hover:bg-[#4356cc] transition disabled:bg-gray-400"
+                                    className="flex-1 bg-[#5468FF] text-white py-1 rounded hover:bg-[#4356cc] transition disabled:bg-gray-400"
                                 >
                                     Crear
                                 </button>

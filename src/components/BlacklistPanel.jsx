@@ -673,7 +673,7 @@ const BlacklistPanel = ({ user, onClose }) => {
                                     placeholder="Nombre de la lista negra"
                                     value={newBlacklistName}
                                     onChange={(e) => setNewBlacklistName(e.target.value)}
-                                    className="w-full p-2 border border-gray-300 rounded mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    className="w-full p-2 border border-[#A6A6A6] rounded mb-2 focus:outline-none focus:ring-1 focus:ring-[#5468FF] bg-white text-[#393346]"
                                 />
                                 <div className="flex space-x-2">
                                     <button

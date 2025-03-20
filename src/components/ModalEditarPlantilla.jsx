@@ -256,7 +256,7 @@ const ModalEditarPlantilla = ({
                         setNombre(e.target.value);
                         if (isCreateMode && setNewTemplate) setNewTemplate(e.target.value);
                     }}
-                    className="w-full p-2 md:p-3 mt-1 mb-3 md:mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700 text-sm md:text-base"
+                    className="w-full p-2 md:p-3 mt-1 mb-3 md:mb-4 border border-[#A6A6A6] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5468FF] bg-white text-[#393346] text-sm md:text-base"
                     placeholder="Nombre de la plantilla"
                     disabled={isLoading}
                 />
@@ -325,7 +325,7 @@ const ModalEditarPlantilla = ({
                 
                 {/* Botón Guardar (color ajustado) */}
                 <button
-                    className="mt-4 md:mt-6 w-full bg-[#A0B1FF] text-white py-2 md:py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#B0BAF5] transition text-sm md:text-base"
+                    className="mt-4 md:mt-6 w-full bg-[#5468FF] text-white py-2 md:py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#4356cc] transition text-sm md:text-base"
                     onClick={handleSave}
                     disabled={isLoading}
                 >

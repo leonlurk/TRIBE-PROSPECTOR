@@ -376,12 +376,7 @@ const SendMediaComponent = ({ instagramToken, usersList, showNotification, loadi
             <button
                 onClick={sendMedia}
                 disabled={loading || !mediaFile || usersList.length === 0}
-                className="w-full px-6 py-3 rounded-full font-semibold flex items-center justify-center"
-                style={{
-                    backgroundColor: loading || !mediaFile || usersList.length === 0 ? '#A6A6A6' : '#6B6674',
-                    color: '#FFFFFF',
-                    cursor: loading || !mediaFile || usersList.length === 0 ? 'not-allowed' : 'pointer',
-                }}
+                className="w-full p-2 border border-[#A6A6A6] rounded-md bg-white text-[#393346] focus:outline-none focus:ring-1 focus:ring-[#5468FF]"
             >
                 {loading ? (
                     <>

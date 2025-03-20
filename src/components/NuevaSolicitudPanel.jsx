@@ -1016,7 +1016,7 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                         });
                                     }
                                 }}
-                                className="text-[#5468FF] hover:underline"
+                                className="px-4 py-2 bg-[#5468FF] text-white rounded-lg hover:bg-[#4356cc]"
                                 disabled={loading}
                             >
                                 Guardar en Whitelist
@@ -1065,8 +1065,8 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                 <button
                                     className={`inline-block py-3 px-5 border-b-2 font-medium text-sm ${
                                         activeTab === 'message' 
-                                            ? 'border-[#5468FF] text-[#5468FF]' 
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                            ? 'border-[#5468FF]' 
+                                            : 'border-transparent text-white bg-[#5468FF]'
                                     }`}
                                     onClick={() => {
                                         setActiveTab('message');
@@ -1096,8 +1096,8 @@ const NuevaSolicitudPanel = ({ instagramToken, user, templates = [], initialTab 
                                 <button
                                     className={`inline-block py-3 px-5 border-b-2 font-medium text-sm ${
                                         activeTab === 'media' 
-                                            ? 'border-[#5468FF] text-[#5468FF]' 
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                            ? 'border-[#5468FF]' 
+                                            : 'border-transparent text-white bg-[#5468FF]'
                                     }`}
                                     onClick={() => {
                                         setActiveTab('media');

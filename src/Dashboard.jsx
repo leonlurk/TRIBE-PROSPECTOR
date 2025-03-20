@@ -371,6 +371,15 @@ const Dashboard = () => {
         </div>
       );
     }
+    
+    if (selectedOption === "Gestionar Blacklist") {
+      return (
+        <BlacklistPanel
+          user={user}
+          onClose={() => setSelectedOption("Plantilla de mensajes")}
+        />
+      );
+    }
 
     if (selectedOption === "Nueva solicitud") {
       if (!isInstagramConnected) {
@@ -456,13 +465,6 @@ const Dashboard = () => {
                 onClick={openCreateTemplateModal}
               >
                 <FaPlus /> Crear Plantilla
-              </button>
-
-              <button
-                className="px-4 md:px-6 py-2 md:py-3 bg-red-500 text-white rounded-full shadow-sm font-semibold flex items-center gap-2 hover:bg-red-600 transition text-sm md:text-base"
-                onClick={() => setShowBlacklistPanel(true)}
-              >
-                <FaBan /> Gestionar Blacklist
               </button>
 
               <div className="relative">

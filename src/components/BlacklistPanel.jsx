@@ -602,8 +602,8 @@ const BlacklistPanel = ({ user, onClose }) => {
         : blacklistUsers;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50 overflow-auto p-4">
-            <div className="bg-white rounded-xl shadow-xl w-[90%] max-w-5xl max-h-[90vh] overflow-auto">
+        <div className={`${onClose ? "fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50" : ""} overflow-auto p-4`}>
+        <div className={`bg-white rounded-xl shadow-xl ${onClose ? "w-[90%] max-w-5xl max-h-[90vh]" : "w-full"} overflow-auto`}>
                 {/* Cabecera con botón de cierre */}
                 <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                     <h2 className="text-2xl font-bold text-gray-800">Gestión de Listas Negras</h2>
@@ -838,12 +838,14 @@ const BlacklistPanel = ({ user, onClose }) => {
                     <div className="text-sm text-gray-500">
                         <p>Los usuarios en listas negras serán ignorados automáticamente en todos los procesos de envío y comunicación.</p>
                     </div>
-                    <button 
-                        onClick={onClose}
-                        className="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
-                    >
-                        Cerrar
-                    </button>
+                    {onClose && (
+                        <button 
+                            onClick={onClose}
+                            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
+                        >
+                            Cerrar
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

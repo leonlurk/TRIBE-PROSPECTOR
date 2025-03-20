@@ -2,13 +2,12 @@ import { useState, useEffect } from "react";
 import { auth } from "./firebaseConfig";
 import { useNavigate } from "react-router-dom";
 import PropTypes from 'prop-types';
-import { FaInstagram, FaTimes } from "react-icons/fa"
+import { FaInstagram, FaTimes, FaBan } from "react-icons/fa";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
 const logoPath = "/LogoNegro.png";
 
-// We'll filter these items based on the isInstagramConnected prop
 const getMenuItems = (isInstagramConnected) => {
     const baseMenuItems = [
         { name: "Whitelist", icon: "/assets/people.png" },
@@ -17,7 +16,13 @@ const getMenuItems = (isInstagramConnected) => {
         { name: "Nueva solicitud", icon: "/assets/add-square.png" },
     ];
     
-    // Only add "Conectar Instagram" if Instagram is not connected
+    if (isInstagramConnected) {
+        baseMenuItems.push({
+            name: "Gestionar Blacklist",
+            icon: <FaBan className="w-5 h-5 md:w-6 md:h-6 text-red-500" />
+        });
+    }
+    
     if (!isInstagramConnected) {
         baseMenuItems.push({ 
             name: "Conectar Instagram", 

@@ -6,7 +6,7 @@ import { Buffer } from 'buffer';
 import fs from 'fs';
 import path from 'path';
 
-// Safely read service account
+
 const serviceAccountPath = path.resolve('./service-account.json');
 let serviceAccount;
 try {
@@ -16,14 +16,14 @@ try {
   throw new Error('Cannot load service account');
 }
 
-// Initialize Firebase Admin 
+
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-// Create and export the function
+
 export const verifySSOToken = functionsV1.https.onRequest(async (req, res) => {
-  // CORS handling
+ 
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
@@ -76,21 +76,21 @@ export const verifySSOToken = functionsV1.https.onRequest(async (req, res) => {
       });
     }
     
-    // Decode payload
+   
     const decodedPayload = JSON.parse(
       Buffer.from(encodedPayload, 'base64url').toString('utf-8')
     );
     
-    // Check token expiration
+   
     const now = Math.floor(Date.now() / 1000);
     if (decodedPayload.exp && decodedPayload.exp < now) {
       return res.status(401).json({ error: 'Token expirado' });
     }
     
-    // Extract user information
+
     const { email, username, name: nombre, lastname: apellido, expiration_date: fechaExpiracion, password, sub: externalUserId } = decodedPayload;
     
-    // Find or create user in Firebase Auth
+
     let uid;
     try {
       const userRecord = await getAuth().getUserByEmail(email);
@@ -107,7 +107,7 @@ export const verifySSOToken = functionsV1.https.onRequest(async (req, res) => {
       }
     }
 
-    // Generate custom token
+
     const customToken = await getAuth().createCustomToken(uid, {
       externalUserId,
       ssoProvider: 'empresa_partner'
@@ -122,7 +122,7 @@ return res.status(200).json({
     nombre,
     apellido,
     fechaExpiracion,
-    password, // Ten en cuenta que no es recomendable manejar contraseñas en un SSO
+    password, 
     provider: 'empresa_partner',
     externalUserId,
     forceUpdate: false

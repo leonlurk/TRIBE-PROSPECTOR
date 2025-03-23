@@ -1,8 +1,8 @@
-// Guarda esto como test-sso.mjs o renómbralo a .cjs como sugiere el error
+
 import crypto from 'crypto';
 import https from 'https';
 
-// Crear header y payload
+
 const header = {
   alg: 'HS256',
   typ: 'JWT'
@@ -15,10 +15,10 @@ const payload = {
   lastname: 'De Prueba',
   expiration_date: '2025-12-31T23:59:59Z',
   sub: 'user123',
-  exp: Math.floor(Date.now() / 1000) + 3600 // 1 hora de validez
+  exp: Math.floor(Date.now() / 1000) + 3600 
 };
 
-// Codificar a base64url
+
 const encodeBase64Url = (obj) => {
   return Buffer.from(JSON.stringify(obj))
     .toString('base64')
@@ -27,7 +27,7 @@ const encodeBase64Url = (obj) => {
     .replace(/\//g, '_');
 };
 
-// Generar token
+
 const encodedHeader = encodeBase64Url(header);
 const encodedPayload = encodeBase64Url(payload);
 const signature = crypto
@@ -43,7 +43,7 @@ const token = `${encodedHeader}.${encodedPayload}.${signature}`;
 console.log('Token JWT generado:');
 console.log(token);
 
-// Opcional: Probar el token con fetch
+
 const data = JSON.stringify({
   token: token
 });

@@ -13,6 +13,7 @@ import BlacklistPanel from "./components/BlacklistPanel";
 import { checkBlacklistedUsers } from "./blacklistUtils";
 import { getInstagramSession, clearInstagramSession } from "./instagramSessionUtils";
 import CampaignsPanel from "./components/CampaignsPanel";
+import HomeDashboard from "./components/HomeDashboard";
 
 
 const API_BASE_URL = "https://alets.com.ar";
@@ -31,7 +32,7 @@ const randomDelay = async (min = 800, max = 2500) => {
 const Dashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [selectedOption, setSelectedOption] = useState("Plantilla de mensajes");
+  const [selectedOption, setSelectedOption] = useState("Home");
   const [isLoading, setIsLoading] = useState(true);
   const [isInstagramConnected, setIsInstagramConnected] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -374,6 +375,10 @@ const Dashboard = () => {
       );
     }
 
+    if (selectedOption === "Home") {
+      return <HomeDashboard user={user} />;
+    }
+
     if (selectedOption === "Campañas") {
       return (
         <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
@@ -438,7 +443,7 @@ const Dashboard = () => {
       );
     }
 
-    if (selectedOption === "Plantilla de mensajes") {
+    if (selectedOption === "Plantillas") {
       return (
         <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-4">
@@ -659,7 +664,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-gray-100 relative">
+    <div className="h-screen flex flex-col md:flex-row bg-gray-100 relative font-['Poppins']">
       {/* Notificación simple */}
       {notification.show && (
         <div
@@ -730,7 +735,7 @@ const Dashboard = () => {
       platform: selectedPlatform !== "Plataformas" ? selectedPlatform : "",
       body: newTemplateBody,
       userId: user?.uid || "",
-      type: selectedType !== "Tipo" ? selectedType : "Plantillas de mensajes"
+      type: selectedType !== "Tipo" ? selectedType : "Plantillas"
     }}
     onClose={() => setIsCreateTemplateModalOpen(false)}
     onUpdate={handleTemplateUpdated}

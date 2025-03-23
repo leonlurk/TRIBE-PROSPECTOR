@@ -1,22 +1,20 @@
-
 import crypto from 'crypto';
-
+//headers
 const header = {
   alg: 'HS256',
   typ: 'JWT'
 };
-
+//datos usuario
 const payload = {
-  email: 'usuario.prueba@ejemplo.com',
-  username: 'usuario_test',
-  name: 'Usuario',
-  lastname: 'De Prueba',
-  expiration_date: '2025-12-31T23:59:59Z',
-  sub: 'user123',
+  email: "nuevo2.usuario@ejemplo.com",  
+  username: "nuevo2_usuario",           
+  name: "Nuevo2",                       
+  lastname: "Usuario2",                 
+  expiration_date: "2026-06-30T23:59:59Z", 
+  sub: "user454",                      
   exp: Math.floor(Date.now() / 1000) + 3600
 };
-
-// Codificar a base64url
+//generacion de token
 const encodeBase64Url = (obj) => {
   return Buffer.from(JSON.stringify(obj))
     .toString('base64')
@@ -25,7 +23,7 @@ const encodeBase64Url = (obj) => {
     .replace(/\//g, '_');
 };
 
-// Generar token
+
 const encodedHeader = encodeBase64Url(header);
 const encodedPayload = encodeBase64Url(payload);
 const signature = crypto
@@ -36,9 +34,8 @@ const signature = crypto
   .replace(/\+/g, '-')
   .replace(/\//g, '_');
 
+  //url de redireccion
 const token = `${encodedHeader}.${encodedPayload}.${signature}`;
-
-// URL de redirección
 const baseUrl = "https://iasystem.tribeinternational.net";
 const redirectUrl = `${baseUrl}/sso?token=${token}`;
 

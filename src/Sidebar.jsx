@@ -2,22 +2,23 @@ import { useState, useEffect } from "react";
 import { auth } from "./firebaseConfig";
 import { useNavigate } from "react-router-dom";
 import PropTypes from 'prop-types';
-import { FaInstagram, FaTimes, FaBan } from "react-icons/fa";
+import { FaInstagram, FaTimes, FaBan, FaHome } from "react-icons/fa";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
-const logoPath = "/LogoNegro.png";
+const logoPath = "/assets/logoBlanco.png";
 
 const getMenuItems = (isInstagramConnected) => {
     const baseMenuItems = [
-        { name: "Plantilla de mensajes", icon: "/assets/device-message.png" },
+        { name: "Home", icon: <FaHome className="w-5 h-5 md:w-6 md:h-6 text-white" /> },
+        { name: "Plantillas", icon: "/assets/device-message.png" },
         { name: "Estadísticas", icon: "/assets/graph.png" },
         { name: "Nueva solicitud", icon: "/assets/add-square.png" },
     ];
     
     if (isInstagramConnected) {
         baseMenuItems.push(
-            { name: "Campañas", icon: "/assets/calendar.png" },  // Añadir esta línea
+            { name: "Campañas", icon: "/assets/calendar.png" },
             { name: "Whitelist", icon: "/assets/people.png" },
             {
                 name: "Gestionar Blacklist",
@@ -29,7 +30,7 @@ const getMenuItems = (isInstagramConnected) => {
     if (!isInstagramConnected) {
         baseMenuItems.push({ 
             name: "Conectar Instagram", 
-            icon: <FaInstagram className="w-5 h-5 md:w-6 md:h-6" /> 
+            icon: <FaInstagram className="w-5 h-5 md:w-6 md:h-6 text-white" /> 
         });
     }
     
@@ -37,9 +38,9 @@ const getMenuItems = (isInstagramConnected) => {
 };
 
 const bottomItems = [
-    { name: "Documentos", icon: "/assets/mobile-programming.png" },
-    { name: "Soporte", icon: "/assets/call-calling.png" },
-    { name: "Ajustes", icon: "/assets/setting-2.png" }
+    { name: "Herramientas", icon: "/assets/mobile-programming.png" },
+    { name: "Ajustes", icon: "/assets/call-calling.png" },
+    { name: "Light Mode", icon: "/assets/setting-2.png" }
 ];
 
 const Sidebar = ({ selectedOption = "", setSelectedOption = () => {}, isInstagramConnected = false }) => {
@@ -62,31 +63,31 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {}, isInstagra
     }, []);
     
     const fetchUserData = async (uid) => {
-        const userRef = doc(db, "users", uid);  // Asegúrate de apuntar al nombre correcto de tu colección
+        const userRef = doc(db, "users", uid);
         const docSnap = await getDoc(userRef);
     
         if (docSnap.exists()) {
-            setUserData(docSnap.data());  // Guarda los datos de Firestore en userData
+            setUserData(docSnap.data());
         } else {
             console.warn("No se encontraron datos de usuario en Firestore");
         }
     };
     
-    const handleLogout = async () => {
+   {/* const handleLogout = async () => {
         try {
             await auth.signOut();
             navigate("/");
         } catch (error) {
             console.error("Logout error:", error);
         }
-    }; 
+    }; */} 
 
     return (
-        <div className="h-screen w-[85vw] md:w-[280px] lg:w-[300px] bg-white shadow-lg rounded-tr-3xl flex flex-col justify-between p-4 md:p-6 overflow-y-auto">
+        <div className="h-screen w-[85vw] md:w-[280px] lg:w-[300px] bg-[#0d0420] shadow-lg rounded-tr-3xl flex flex-col justify-between p-4 md:p-6 overflow-y-auto font-['Poppins']">
             {/* Botón de cerrar solo visible en móviles */}
             <div className="md:hidden flex justify-end mb-2">
                 <button 
-                    className="p-1 rounded-full bg-gray-100 text-gray-500"
+                    className="p-1 rounded-full bg-gray-800 text-white"
                     onClick={() => setSelectedOption(selectedOption)}
                     aria-label="Cerrar menú"
                 >
@@ -102,29 +103,28 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {}, isInstagra
                     className="w-[160px] md:w-[200px]" 
                     onError={(e) => {
                         console.error("Logo image failed to load");
-                        e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='60'%3E%3Crect width='200' height='60' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='16'%3EKoafy%3C/text%3E%3C/svg%3E";
+                        e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='60'%3E%3Crect width='200' height='60' fill='%23000000'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='16' fill='white'%3EKoafy%3C/text%3E%3C/svg%3E";
                     }}
                 />
             </div>
 
             {/* Menú principal con imágenes */}
             <nav className="flex flex-col space-y-2 md:space-y-4 overflow-y-auto">
-            {menuItems.map((item) => (
-              <button
-                  key={item.name}
-                  onClick={() => setSelectedOption(item.name)}
-                  className={`flex items-center space-x-3 p-2 md:p-3 rounded-lg transition text-sm md:text-base
-                      ${selectedOption === item.name ? "bg-blue-200 text-blue-700 font-semibold" : "bg-white text-gray-900 hover:bg-gray-100"}`}
-              >
-                  {typeof item.icon === "string" ? (
-                      <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6" />
-                  ) : (
-                      <span className="w-5 h-5 md:w-6 md:h-6 text-gray-600">{item.icon}</span>
-                  )}
-                  <span>{item.name}</span>
-              </button>
-          ))}
-
+                {menuItems.map((item) => (
+                    <button
+                        key={item.name}
+                        onClick={() => setSelectedOption(item.name)}
+                        className={`flex items-center space-x-3 p-2 md:p-3 transition text-base md:text-lg text-white bg-transparent
+                            ${selectedOption === item.name ? "font-semibold" : "hover:outline hover:outline-1 hover:outline-gray-700"}`}
+                    >
+                        {typeof item.icon === "string" ? (
+                            <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6 brightness-0 invert" />
+                        ) : (
+                            <span className="w-5 h-5 md:w-6 md:h-6 text-white">{item.icon}</span>
+                        )}
+                        <span>{item.name}</span>
+                    </button>
+                ))}
             </nav>
 
             {/* Sección inferior con imágenes */}
@@ -133,35 +133,36 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {}, isInstagra
                     <button
                         key={item.name}
                         onClick={() => setSelectedOption(item.name)}
-                        className="flex items-center space-x-3 p-2 md:p-3 rounded-lg bg-white text-gray-900 hover:bg-gray-100 transition text-sm md:text-base"
+                        className="flex items-center space-x-3 p-2 md:p-3 transition text-sm md:text-base text-white bg-transparent hover:outline hover:outline-1 hover:outline-gray-700 whitespace-nowrap"
                     >
-                        <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6" />
+                        <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6 brightness-0 invert" />
                         <span>{item.name}</span>
                     </button>
                 ))}
 
                 {/* Usuario Autenticado */}
-                <div className="border-t pt-3 md:pt-4 flex items-center text-gray-500 mt-3 md:mt-4 gap-3 md:gap-4">
+                <div className="border-t border-gray-800 pt-3 md:pt-4 flex items-center mt-3 md:mt-4 gap-3 md:gap-4">
                     <img 
                         src="/assets/user.png" 
                         alt="User Icon"
                         className="w-8 h-8 md:w-10 md:h-10 rounded-full"
                         onError={(e) => {
-                            e.target.src = "/assets/avatar.png"; // Usa un fallback local
+                            e.target.src = "/assets/avatar.png";
                         }}
                     />
                     <div className="flex flex-col overflow-hidden">
-                        <span className="text-xs md:text-sm font-medium text-gray-700 truncate">{userData.username || "Usuario"}</span>
+                        <span className="text-xs md:text-sm font-medium text-white truncate">{userData.username || "Usuario"}</span>
                         <span className="text-xs text-gray-400 truncate">{user?.email || "Sin correo"}</span>
                     </div>
                 </div>
+                
                 {/* Botón de Cerrar Sesión */}
-                <button
+            {/*    <button
                     onClick={handleLogout}
                     className="mt-2 md:mt-4 flex items-center justify-center space-x-3 p-2 md:p-3 rounded-lg bg-gray-200 text-black hover:bg-gray-300 transition w-full text-sm md:text-base"
                 >
                     <span>Cerrar Sesión</span>
-                </button>
+                </button> */}
             </div>
         </div>
     );

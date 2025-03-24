@@ -348,10 +348,22 @@ const HomeDashboard = ({ user }) => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         {/* Total de interacciones */}
-        <div className="bg-white p-4 rounded-xl shadow-sm">
-  <div className="mb-2">
-    <h2 className="text-3xl font-medium text-black">{totalInteractions.toLocaleString()}</h2>
-    <p className="text-sm text-gray-500">Total de interacciones</p>
+<div className="bg-white p-4 rounded-xl shadow-sm">
+  <div className="flex justify-between items-center mb-2">
+    <div>
+      <h2 className="text-3xl font-medium text-black">{totalInteractions.toLocaleString()}</h2>
+      <p className="text-sm text-gray-500">Total de interacciones</p>
+    </div>
+    
+    {/* Botón de configuración para el gráfico izquierdo */}
+    {/* Botón de configuración para el gráfico izquierdo */}
+<div className="flex items-center">
+  <img 
+    src="/assets/setting-4.png" 
+    alt="Configuración" 
+    className="w-12 h-12 cursor-pointer"
+  />
+</div>
   </div>
 
   <div className="flex gap-4 text-sm mb-4">
@@ -432,20 +444,15 @@ const HomeDashboard = ({ user }) => {
 <div className="bg-white p-6 rounded-xl shadow-sm">
   <div className="flex justify-between items-center">
     <h2 className="text-2xl font-medium text-black">Grafico A/B de mensajes</h2>
-    <div className="flex space-x-1">
-      <div className="w-6 h-6 rounded flex items-center justify-center bg-gray-100">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M9 22H15C20 22 22 20 22 15V9C22 4 20 2 15 2H9C4 2 2 4 2 9V15C2 20 4 22 9 22Z" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10Z" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M2.67004 18.9501L7.60004 15.6401C8.39004 15.1101 9.53004 15.1701 10.24 15.7801L10.57 16.0701C11.35 16.7401 12.61 16.7401 13.39 16.0701L17.55 12.5001C18.33 11.8301 19.59 11.8301 20.37 12.5001L22 13.9001" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </div>
-      <div className="w-6 h-6 rounded flex items-center justify-center bg-gray-100">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 9L12 15L18 9" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </div>
-    </div>
+    
+    {/* Botón de configuración para el gráfico derecho */}
+    <div className="flex items-center">
+  <img 
+    src="/assets/setting-4.png" 
+    alt="Configuración" 
+    className="w-12 h-12 cursor-pointer"
+  />
+</div>
   </div>
   {renderBarChart()}
 </div>

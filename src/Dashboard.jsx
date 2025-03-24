@@ -315,8 +315,12 @@ const Dashboard = () => {
       setIsCreateTemplateModalOpen(false);
       fetchTemplates(user.uid);
     } catch (error) {
-      console.error("Error al guardar la plantilla:", error);
-      showNotification("Error al guardar la plantilla", "error");
+      console.error("Error detallado al guardar la plantilla:", {
+        message: error.message, 
+        code: error.code, 
+        stack: error.stack
+      });
+      showNotification(`Error al guardar la plantilla: ${error.message}`, "error");
     } finally {
       setIsLoading(false);
     }
@@ -445,145 +449,76 @@ const Dashboard = () => {
 
     if (selectedOption === "Plantillas") {
       return (
-        <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 md:mb-6 gap-4">
-          <div className="relative w-full md:w-1/3">
-  <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" />
-  <input
-    type="text"
-    placeholder="Buscar Plantilla"
-    value={searchQuery}
-    onChange={(e) => searchTemplates(e.target.value)}
-    style={{ paddingLeft: '40px' }}
-    className="p-3 md:p-4 border border-[#A6A6A6] rounded-full w-full bg-white shadow-sm text-[#393346] focus:outline-none focus:ring-1 focus:ring-[#5468FF]"
-  />
-</div>
-            <div className="flex flex-wrap gap-2 md:gap-4">
-              <div className="relative">
-                <button
-                  className="px-4 md:px-6 py-2 md:py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium text-sm md:text-base w-full md:w-auto"
-                  onClick={togglePlatformMenu}
-                >
-                  {selectedPlatform} ▼
-                </button>
-
-                {isPlatformMenuOpen && (
-                  <div className="absolute z-50 mt-2 bg-white border border-gray-300 rounded-xl shadow-lg w-full min-w-[10rem] overflow-hidden">
-                    <ul className="text-gray-700">
-                      {platforms.map((platform) => (
-                        <li
-                          key={platform}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => selectPlatform(platform)}
-                        >
-                          {platform}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+        <div className="p-6 bg-[#F3F2FC] min-h-screen">
+          {/* Barra superior con búsqueda y botón de crear */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="relative w-1/2">
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <FaSearch className="text-gray-400" />
               </div>
-
-              <button
-                className="px-4 md:px-6 py-2 md:py-3 bg-[#5468FF] text-white rounded-full shadow-sm font-semibold flex items-center gap-2 hover:bg-[#4356cc] transition text-sm md:text-base"
-                onClick={openCreateTemplateModal}
-              >
-                <FaPlus /> Crear Plantilla
-              </button>
-
-              <div className="relative">
-                <button
-                  className="px-4 md:px-6 py-2 md:py-3 bg-white border border-gray-300 rounded-full shadow-sm text-gray-700 hover:bg-gray-100 transition font-medium text-sm md:text-base w-full md:w-auto"
-                  onClick={toggleTypeMenu}
-                >
-                  {selectedType} ▼
-                </button>
-
-                {isTypeMenuOpen && (
-                  <div className="absolute z-50 mt-2 bg-white border border-gray-300 rounded-xl shadow-lg w-full min-w-[10rem] overflow-hidden right-0">
-                    <ul className="text-gray-700">
-                      {types.map((type) => (
-                        <li
-                          key={type}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => selectType(type)}
-                        >
-                          {type}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+              <input
+                type="text"
+                placeholder="Buscar Plantilla"
+                value={searchQuery}
+                onChange={(e) => searchTemplates(e.target.value)}
+                className="pl-10 pr-3 py-3 w-full rounded-full border-none bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              />
             </div>
+            <button
+              className="flex items-center gap-2 px-6 py-3 bg-white rounded-full shadow-sm text-black"
+              onClick={openCreateTemplateModal}
+            >
+              <span className="text-lg">+</span> Crear Plantilla
+            </button>
           </div>
-
-          {isTemplatesLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-              <span className="ml-2">Cargando plantillas...</span>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredTemplates.length > 0 ? (
-                filteredTemplates.map((template, index) => (
-                  <div
-                    key={template.id}
-                    className="p-4 bg-white rounded-2xl flex justify-between items-center shadow-sm border border-gray-200 hover:shadow-md transition"
-                  >
+    
+          {/* Lista de plantillas */}
+          <div className="space-y-3">
+            {isTemplatesLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+              </div>
+            ) : (
+              filteredTemplates.map((template) => (
+                <div
+                  key={template.id}
+                  className="bg-white rounded-xl shadow-sm overflow-hidden"
+                >
+                  <div className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-4">
-                      <div
-                        className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center"
-                        style={{
-                          backgroundImage: "url(/assets/Rectangle.png)",
-                          backgroundSize: "cover",
-                        }}
-                      >
+                      <div className="bg-[#1E1B4B] rounded-xl w-16 h-16 flex items-center justify-center">
                         <img
-                          src={index % 2 === 0 ? "/assets/message.png" : "/assets/messages-2.png"}
-                          alt="Message Icon"
-                          className="w-6 h-6 md:w-8 md:h-8 object-contain"
+                          src={template.type === "Plantillas de comentarios" ? "/assets/message-dots.png" : "/assets/message.png"}
+                          alt="Icon"
+                          className="w-8 h-8"
                         />
                       </div>
-                      <div className="overflow-hidden">
-                        <p className="font-semibold text-gray-800 truncate text-sm md:text-base">
-                          {template.name}
-                        </p>
-                        <p className="text-xs md:text-sm text-gray-500 truncate">
-                          {template.platform || "Sin plataforma"}
-                        </p>
+                      <div>
+                        <h3 className="font-bold text-lg">{template.name}</h3>
+                        <p className="text-gray-500">{template.platform}</p>
                       </div>
                     </div>
-                    <button
-                      className="cursor-pointer flex items-center justify-center ml-2"
-                      style={{
-                        backgroundColor: "transparent",
-                        border: "none",
-                        padding: 0,
-                        margin: 0,
-                        lineHeight: 1,
-                      }}
+                    <img
+                      src="/assets/settings-4.png"
+                      alt="Options"
+                      className="w-6 h-6 cursor-pointer"
                       onClick={() => handleTemplateOptions(template)}
-                    >
-                      <img
-                        src="/assets/setting-5.png"
-                        alt="Opciones"
-                        className="w-9 h-9 md:w-11 md:h-11"
-                      />
-                    </button>
+                    />
                   </div>
-                ))
-              ) : (
-                <div className="p-4 md:p-8 bg-white rounded-2xl text-center">
-                  <p className="text-gray-500">
-                    {searchQuery
-                      ? "No se encontraron plantillas con esos criterios de búsqueda."
-                      : "No hay plantillas disponibles. Crea una nueva plantilla para comenzar."}
-                  </p>
                 </div>
-              )}
-            </div>
-          )}
+              ))
+            )}
+            
+            {filteredTemplates.length === 0 && !isTemplatesLoading && (
+              <div className="bg-white rounded-xl p-6 text-center">
+                <p className="text-gray-500">
+                  {searchQuery
+                    ? "No se encontraron plantillas con esos criterios de búsqueda."
+                    : "No hay plantillas disponibles. Crea una nueva plantilla para comenzar."}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       );
     }

@@ -14,6 +14,7 @@ import { checkBlacklistedUsers } from "./blacklistUtils";
 import { getInstagramSession, clearInstagramSession } from "./instagramSessionUtils";
 import CampaignsPanel from "./components/CampaignsPanel";
 import HomeDashboard from "./components/HomeDashboard";
+import StatisticsDashboard from "./components/StatisticsDashboard";
 
 
 const API_BASE_URL = "https://alets.com.ar";
@@ -70,16 +71,21 @@ const Dashboard = () => {
   // Búsqueda
   const searchTemplates = (query) => {
     setSearchQuery(query);
+    console.log("Buscando:", query); // Agrega este console.log para depuración
+    
     if (!query.trim()) {
       setFilteredTemplates(templates);
       return;
     }
+    
     const filtered = templates.filter(
       (template) =>
         template.name.toLowerCase().includes(query.toLowerCase()) ||
-        template.body.toLowerCase().includes(query.toLowerCase()) ||
-        template.platform.toLowerCase().includes(query.toLowerCase())
+        (template.body && template.body.toLowerCase().includes(query.toLowerCase())) ||
+        (template.platform && template.platform.toLowerCase().includes(query.toLowerCase()))
     );
+    
+    console.log("Plantillas filtradas:", filtered.length); // Para depuración
     setFilteredTemplates(filtered);
   };
 
@@ -125,20 +131,6 @@ const Dashboard = () => {
 
   const openCreateTemplateModal = () => {
     setIsCreateTemplateModalOpen(true);
-  };
-
-  const toggleTypeMenu = () => setIsTypeMenuOpen(!isTypeMenuOpen);
-
-  const selectType = (type) => {
-    filterTemplatesByType(type);
-  };
-
-  const platforms = ["Todos", "Instagram"];
-
-  const togglePlatformMenu = () => setIsPlatformMenuOpen(!isPlatformMenuOpen);
-
-  const selectPlatform = (platform) => {
-    filterTemplatesByPlatform(platform);
   };
 
   // Verifica sesión
@@ -315,12 +307,8 @@ const Dashboard = () => {
       setIsCreateTemplateModalOpen(false);
       fetchTemplates(user.uid);
     } catch (error) {
-      console.error("Error detallado al guardar la plantilla:", {
-        message: error.message, 
-        code: error.code, 
-        stack: error.stack
-      });
-      showNotification(`Error al guardar la plantilla: ${error.message}`, "error");
+      console.error("Error al guardar la plantilla:", error);
+      showNotification("Error al guardar la plantilla", "error");
     } finally {
       setIsLoading(false);
     }
@@ -371,6 +359,7 @@ const Dashboard = () => {
 
   // Render principal
   const renderContent = () => {
+    
     if (isLoading) {
       return (
         <div className="flex justify-center items-center h-full">
@@ -385,10 +374,7 @@ const Dashboard = () => {
 
     if (selectedOption === "Campañas") {
       return (
-        <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
-          <h2 className="text-xl md:text-2xl font-bold mb-4 text-[#393346]">
-            Campañas en Progreso
-          </h2>
+        <div className="p-4 md:p-6 bg-[#EEF0FF] min-h-screen">
           <CampaignsPanel 
             user={user} 
             onRefreshStats={() => {
@@ -399,7 +385,9 @@ const Dashboard = () => {
       );
     }
 
-    if (selectedOption === "Gestionar Blacklist") {
+    
+
+    if (selectedOption === "Blacklist") {
       return (
         <BlacklistPanel
           user={user}
@@ -449,118 +437,101 @@ const Dashboard = () => {
 
     if (selectedOption === "Plantillas") {
       return (
-        <div className="p-6 bg-[#F3F2FC] min-h-screen">
-          {/* Barra superior con búsqueda y botón de crear */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="relative w-1/2">
-              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                <FaSearch className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Buscar Plantilla"
-                value={searchQuery}
-                onChange={(e) => searchTemplates(e.target.value)}
-                className="pl-10 pr-3 py-3 w-full rounded-full border-none bg-white shadow-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-              />
+        <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
+          <div className="flex flex-row justify-between items-center mb-4 md:mb-6 gap-2">
+  <div className="relative flex-grow">
+    <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500" />
+    <input
+      type="text"
+      placeholder="Buscar Plantilla"
+      value={searchQuery}
+      onChange={(e) => searchTemplates(e.target.value)}
+      style={{ paddingLeft: '40px' }}
+      className="p-3 md:p-4 border border-[#ffffff] rounded-full w-full bg-white shadow-sm text-[#393346] focus:outline-none focus:ring-1 focus:ring-black"
+    />
+  </div>
+  <button
+  className="px-4 md:px-6 py-3 md:py-4 bg-white text-black rounded-full shadow-sm flex items-center gap-2 hover:bg-[#acacac] transition text-sm md:text-base whitespace-nowrap h-[46px] md:h-[54px]"
+  onClick={openCreateTemplateModal}
+>
+  <FaPlus /> Crear Plantilla
+</button>
+</div>
+
+          {isTemplatesLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+              <span className="ml-2">Cargando plantillas...</span>
             </div>
-            <button
-              className="flex items-center gap-2 px-6 py-3 bg-white rounded-full shadow-sm text-black"
-              onClick={openCreateTemplateModal}
-            >
-              <span className="text-lg">+</span> Crear Plantilla
-            </button>
-          </div>
-    
-          {/* Lista de plantillas */}
-          <div className="space-y-3">
-            {isTemplatesLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
-              </div>
-            ) : (
-              filteredTemplates.map((template) => (
-                <div
-                  key={template.id}
-                  className="bg-white rounded-xl shadow-sm overflow-hidden"
-                >
-                  <div className="flex items-center justify-between p-4">
+          ) : (
+            <div className="space-y-4">
+              {filteredTemplates.length > 0 ? (
+                filteredTemplates.map((template, index) => (
+                  <div
+                    key={template.id}
+                    className="p-4 bg-white rounded-2xl flex justify-between items-center shadow-sm hover:shadow-md transition"
+                  >
                     <div className="flex items-center gap-4">
-                      <div className="bg-[#1E1B4B] rounded-xl w-16 h-16 flex items-center justify-center">
+                      <div
+                        className="w-12 h-12 md:w-12 md:h-12 flex items-center justify-center"
+                        style={{
+                          backgroundImage: "url(/assets/rectangleDark.png)",
+                          backgroundSize: "cover",
+                          width: "58px", // Fuerza el ancho con estilo en línea
+                          height: "58px"
+                        }}
+                      >
                         <img
-                          src={template.type === "Plantillas de comentarios" ? "/assets/message-dots.png" : "/assets/message.png"}
-                          alt="Icon"
-                          className="w-8 h-8"
+                          src={index % 2 === 0 ? "/assets/message.png" : "/assets/messages-2.png"}
+                          alt="Message Icon"
+                          className="w-10 h-10 md:w-8 md:h-8 object-contain"
                         />
                       </div>
-                      <div>
-                        <h3 className="font-bold text-lg">{template.name}</h3>
-                        <p className="text-gray-500">{template.platform}</p>
+                      <div className="overflow-hidden">
+                        <p className="font-semibold text-black truncate text-sm md:text-base">
+                          {template.name}
+                        </p>
+                        <p className="text-xs md:text-sm text-gray-500 truncate">
+                          {template.platform || "Sin plataforma"}
+                        </p>
                       </div>
                     </div>
-                    <img
-                      src="/assets/settings-4.png"
-                      alt="Options"
-                      className="w-6 h-6 cursor-pointer"
+                    <button
+                      className="cursor-pointer flex items-center justify-center ml-2"
+                      style={{
+                        backgroundColor: "transparent",
+                        border: "none",
+                        padding: 0,
+                        margin: 0,
+                        lineHeight: 1,
+                      }}
                       onClick={() => handleTemplateOptions(template)}
-                    />
+                    >
+                      <img
+                        src="/assets/setting-5.png"
+                        alt="Opciones"
+                        className="w-9 h-9 md:w-11 md:h-11"
+                      />
+                    </button>
                   </div>
+                ))
+              ) : (
+                <div className="p-4 md:p-8 bg-white rounded-2xl text-center">
+                  <p className="text-gray-500">
+                    {searchQuery
+                      ? "No se encontraron plantillas con esos criterios de búsqueda."
+                      : "No hay plantillas disponibles. Crea una nueva plantilla para comenzar."}
+                  </p>
                 </div>
-              ))
-            )}
-            
-            {filteredTemplates.length === 0 && !isTemplatesLoading && (
-              <div className="bg-white rounded-xl p-6 text-center">
-                <p className="text-gray-500">
-                  {searchQuery
-                    ? "No se encontraron plantillas con esos criterios de búsqueda."
-                    : "No hay plantillas disponibles. Crea una nueva plantilla para comenzar."}
-                </p>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       );
     }
 
     if (selectedOption === "Estadísticas") {
-      return (
-        <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl md:text-4xl font-bold">0</h2>
-                <FaSlidersH className="text-gray-500" />
-              </div>
-              <p className="text-gray-500">Mensajes enviados</p>
-              <div className="h-48 md:h-64">
-                <ChartComponent />
-              </div>
-            </div>
-
-            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md">
-              <h3 className="text-base md:text-lg font-semibold">Lead Generados</h3>
-              <p className="text-xl md:text-2xl font-bold">0</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mt-4 md:mt-6">
-            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md">
-              <h3 className="text-base md:text-lg font-semibold">Tasa de Cierre</h3>
-              <p className="text-gray-500">
-                Promedio <span className="font-bold">0 Días</span>
-              </p>
-            </div>
-            <div className="bg-white p-4 md:p-6 rounded-2xl shadow-md">
-              <h3 className="text-base md:text-lg font-semibold">Tasa de Conversión</h3>
-              <p className="text-xl md:text-2xl font-bold">0%</p>
-            </div>
-          </div>
-          <div className="flex justify-center items-center py-4 md:py-6">
-            <h2 className="text-lg md:text-xl font-semibold text-gray-500">Próximamente</h2>
-          </div>
-        </div>
-      );
+        return <StatisticsDashboard user={user} />;
     }
 
     if (selectedOption === "Send Media") {

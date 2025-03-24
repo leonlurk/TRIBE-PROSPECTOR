@@ -333,7 +333,7 @@ const ModalEditarPlantilla = ({
                 
                 {/* Botón Guardar (color ajustado) */}
                 <button
-                    className="mt-4 md:mt-6 w-full bg-[#5468FF] text-white py-2 md:py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#4356cc] transition text-sm md:text-base"
+                    className="mt-4 md:mt-6 w-full bg-[#0d0420] text-white py-2 md:py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#7c7c7c] transition text-sm md:text-base"
                     onClick={handleSave}
                     disabled={isLoading}
                 >

@@ -10,7 +10,7 @@ const logoPath = "/assets/logoBlanco.png";
 
 const getMenuItems = (isInstagramConnected) => {
     const baseMenuItems = [
-        { name: "Home", icon: <FaHome className="w-5 h-5 md:w-6 md:h-6 text-white" /> },
+        { name: "Home", icon: "/assets/Home.png" },
         { name: "Plantillas", icon: "/assets/device-message.png" },
         { name: "Estadísticas", icon: "/assets/graph.png" },
         { name: "Nueva solicitud", icon: "/assets/add-square.png" },
@@ -18,12 +18,18 @@ const getMenuItems = (isInstagramConnected) => {
     
     if (isInstagramConnected) {
         baseMenuItems.push(
-            { name: "Campañas", icon: "/assets/calendar.png" },
-            { name: "Whitelist", icon: "/assets/people.png" },
-            {
-                name: "Gestionar Blacklist",
-                icon: <FaBan className="w-5 h-5 md:w-6 md:h-6 text-red-500" />
-            }
+            { 
+                name: "Listas", 
+                icon: "/assets/note-2.png",
+                subItems: [
+                    { name: "Whitelist", icon: "/assets/people.png" },
+                    { 
+                        name: "Blacklist", 
+                        icon: <FaBan className="md:w-5 md:h-6 text-white" /> 
+                    }
+                ]
+            },
+            { name: "Campañas", icon: "/assets/calendar.png" }
         );
     }
     
@@ -110,21 +116,54 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {}, isInstagra
 
             {/* Menú principal con imágenes */}
             <nav className="flex flex-col space-y-2 md:space-y-4 overflow-y-auto">
-                {menuItems.map((item) => (
+            {menuItems.map((item) => (
+    <div key={item.name} className="relative">
+        <button
+    onClick={() => {
+        if (item.name === "Listas" && item.subItems) {
+            console.log("Toggling Listas. Estado previo:", selectedOption);
+            setSelectedOption(prev => (prev === item.name ? "" : item.name));
+        } else {
+            console.log("Cambiando vista a:", item.name);
+            setSelectedOption(item.name);
+        }
+    }}
+
+            className={`flex items-center space-x-3 p-2 md:p-3 transition text-base md:text-lg text-white bg-transparent
+                ${selectedOption === item.name ? "font-semibold" : "hover:outline hover:outline-1 hover:outline-gray-700"}`}
+        >
+            {typeof item.icon === "string" ? (
+                <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6 brightness-0 invert" />
+            ) : (
+                <span className="w-5 h-5 md:w-6 md:h-6 text-white">{item.icon}</span>
+            )}
+            <span>{item.name}</span>
+        </button>
+        
+        {/* Subitems con transición suave */}
+        {item.subItems && (
+            <div 
+                className={`pl-8 space-y-2 overflow-hidden transition-all duration-300 ease-in-out 
+                    ${selectedOption === item.name ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}
+            >
+                {item.subItems.map((subItem) => (
                     <button
-                        key={item.name}
-                        onClick={() => setSelectedOption(item.name)}
-                        className={`flex items-center space-x-3 p-2 md:p-3 transition text-base md:text-lg text-white bg-transparent
-                            ${selectedOption === item.name ? "font-semibold" : "hover:outline hover:outline-1 hover:outline-gray-700"}`}
+                        key={subItem.name}
+                        onClick={() => setSelectedOption(subItem.name)}
+                        className="flex items-center space-x-3 p-2 md:p-3 transition text-sm text-gray-300 hover:text-white bg-transparent hover:outline hover:outline-1 hover:outline-gray-700"
                     >
-                        {typeof item.icon === "string" ? (
-                            <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6 brightness-0 invert" />
+                        {typeof subItem.icon === "string" ? (
+                            <img src={subItem.icon} alt={subItem.name} className="w-4 h-4 md:w-5 md:h-5 brightness-0 invert" />
                         ) : (
-                            <span className="w-5 h-5 md:w-6 md:h-6 text-white">{item.icon}</span>
+                            <span className="w-4 h-4 md:w-5 md:h-5 text-white">{subItem.icon}</span>
                         )}
-                        <span>{item.name}</span>
+                        <span>{subItem.name}</span>
                     </button>
                 ))}
+            </div>
+        )}
+    </div>
+))}
             </nav>
 
             {/* Sección inferior con imágenes */}

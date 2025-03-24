@@ -359,7 +359,7 @@ const HomeDashboard = ({ user }) => {
     {/* Botón de configuración para el gráfico izquierdo */}
 <div className="flex items-center">
   <img 
-    src="/assets/setting-4.png" 
+    src="/assets/setting-4.svg" 
     alt="Configuración" 
     className="w-12 h-12 cursor-pointer"
   />
@@ -448,7 +448,7 @@ const HomeDashboard = ({ user }) => {
     {/* Botón de configuración para el gráfico derecho */}
     <div className="flex items-center">
   <img 
-    src="/assets/setting-4.png" 
+    src="/assets/setting-4.svg" 
     alt="Configuración" 
     className="w-12 h-12 cursor-pointer"
   />

@@ -1,33 +1,24 @@
 import { useState, useEffect, useCallback } from "react";
 import PropTypes from 'prop-types';
 import { getActiveCampaigns, getRecentCampaigns, cancelCampaign } from "../campaignStore";
-import { FaSpinner, FaCheckCircle, FaTimesCircle, FaInfoCircle, FaExclamationTriangle, FaStopCircle, FaClock } from "react-icons/fa";
 import logApiRequest from "../requestLogger";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
-// Utilidad para formatear tiempo transcurrido
-const formatElapsedTime = (startDate, endDate = new Date()) => {
-  const elapsed = Math.floor((endDate - startDate) / 1000); // segundos transcurridos
-  
-  if (elapsed < 60) return `${elapsed} segundo${elapsed !== 1 ? 's' : ''}`;
-  
-  const minutes = Math.floor(elapsed / 60);
-  if (minutes < 60) return `${minutes} minuto${minutes !== 1 ? 's' : ''}`;
-  
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  
-  return `${hours} hora${hours !== 1 ? 's' : ''} ${remainingMinutes} minuto${remainingMinutes !== 1 ? 's' : ''}`;
-};
-
 const CampaignsPanel = ({ user, onRefreshStats }) => {
-  const [activeCampaigns, setActiveCampaigns] = useState([]);
-  const [recentCampaigns, setRecentCampaigns] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showRecent, setShowRecent] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0); // Para forzar actualizaciones
-  const [selectedCampaignId, setSelectedCampaignId] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [dropdownState, setDropdownState] = useState({
+    estado: false,
+    tipo: false
+  });
+  const [selectedEstado, setSelectedEstado] = useState("Estado");
+  const [selectedTipo, setSelectedTipo] = useState("Tipo");
+
+  // Opciones para los dropdowns
+  const estadoOptions = ["Todas", "Activas", "Pausadas", "Terminadas"];
+  const tipoOptions = ["Todos", "Mensajes", "Comentarios", "Seguimientos"];
 
   // Función para obtener las campañas
   const fetchCampaigns = useCallback(async () => {
@@ -42,35 +33,36 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
         requestData: {},
         userId: user.uid,
         status: "pending",
-        source: "CampaignsPanel",
-        metadata: {
-          action: "fetch_campaigns"
-        }
+        source: "CampaignsPanel"
       });
       
       // Obtener campañas activas
       const active = await getActiveCampaigns(user.uid);
-      setActiveCampaigns(active);
       
-      // Obtener campañas recientes
-      const recent = await getRecentCampaigns(user.uid, 5);
-      setRecentCampaigns(recent);
+      // Obtener campañas recientes (incluye completadas, pausadas, etc.)
+      const recent = await getRecentCampaigns(user.uid, 15);
+      
+      // Combinar y eliminar duplicados
+      const allCampaigns = [...active];
+      
+      // Añadir campañas recientes que no estén ya en las activas
+      recent.forEach(recentCampaign => {
+        if (!allCampaigns.some(c => c.id === recentCampaign.id)) {
+          allCampaigns.push(recentCampaign);
+        }
+      });
+      
+      // Actualizamos el estado
+      setCampaigns(allCampaigns);
       
       // Registrar éxito
       await logApiRequest({
         endpoint: "internal/fetch_campaigns",
         requestData: {},
         userId: user.uid,
-        responseData: { 
-          activeCampaignsCount: active.length,
-          recentCampaignsCount: recent.length 
-        },
+        responseData: { campaignsCount: allCampaigns.length },
         status: "success",
-        source: "CampaignsPanel",
-        metadata: {
-          action: "fetch_campaigns",
-          resultsCount: active.length + recent.length
-        }
+        source: "CampaignsPanel"
       });
       
     } catch (error) {
@@ -101,37 +93,11 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
     }
   }, [fetchCampaigns, refreshKey, user]);
 
-  useEffect(() => {
-    const debugCampaigns = async () => {
-      if (user?.uid) {
-        try {
-          const campaignsRef = collection(db, "users", user.uid, "campaigns");
-          const snapshot = await getDocs(campaignsRef);
-          const allCampaigns = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }));
-          console.log("TODAS LAS CAMPAÑAS:", allCampaigns);
-          
-          // Filtrar manualmente para ver qué campañas deberían estar activas
-          const activeCampaigns = allCampaigns.filter(c => c.status === "processing");
-          console.log("CAMPAÑAS PROCESANDO:", activeCampaigns);
-          
-          // Ver otras posibles campañas activas con otros estados
-          const otherStatuses = [...new Set(allCampaigns.map(c => c.status))];
-          console.log("ESTADOS ENCONTRADOS:", otherStatuses);
-        } catch (error) {
-          console.error("Error al obtener todas las campañas:", error);
-        }
-      }
-    };
-    
-    debugCampaigns();
-  }, [user]);
-
   // Programar actualizaciones periódicas si hay campañas activas
   useEffect(() => {
-    if (activeCampaigns.length > 0) {
+    const activeCampaignsCount = campaigns.filter(c => c.status === "processing").length;
+    
+    if (activeCampaignsCount > 0) {
       const intervalId = setInterval(() => {
         setRefreshKey(prev => prev + 1);
         
@@ -143,10 +109,12 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
       
       return () => clearInterval(intervalId);
     }
-  }, [activeCampaigns.length, onRefreshStats]);
+  }, [campaigns, onRefreshStats]);
 
   // Función para cancelar una campaña
-  const handleCancelCampaign = async (campaignId) => {
+  const handleCancelCampaign = async (campaignId, e) => {
+    e.stopPropagation(); // Evitar que el clic se propague al contenedor
+    
     if (!window.confirm('¿Estás seguro de cancelar esta campaña?')) return;
     
     try {
@@ -155,11 +123,7 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
         requestData: { campaignId },
         userId: user.uid,
         status: "pending",
-        source: "CampaignsPanel",
-        metadata: {
-          action: "cancel_campaign",
-          campaignId
-        }
+        source: "CampaignsPanel"
       });
       
       const success = await cancelCampaign(user.uid, campaignId);
@@ -171,12 +135,7 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
           requestData: { campaignId },
           userId: user.uid,
           status: "success",
-          source: "CampaignsPanel",
-          metadata: {
-            action: "cancel_campaign",
-            campaignId,
-            result: "success"
-          }
+          source: "CampaignsPanel"
         });
       } else {
         await logApiRequest({
@@ -184,248 +143,238 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
           requestData: { campaignId },
           userId: user.uid,
           status: "error",
-          source: "CampaignsPanel",
-          metadata: {
-            action: "cancel_campaign",
-            campaignId,
-            result: "failed",
-            error: "Unknown error"
-          }
+          source: "CampaignsPanel"
         });
       }
     } catch (error) {
       console.error("Error al cancelar campaña:", error);
-      await logApiRequest({
-        endpoint: "internal/cancel_campaign",
-        requestData: { campaignId },
-        userId: user.uid,
-        status: "error",
-        source: "CampaignsPanel",
-        metadata: {
-          action: "cancel_campaign",
-          campaignId,
-          result: "failed",
-          error: error.message
-        }
-      });
     }
   };
 
-  // Renderizar indicador de estado de la campaña
-  const renderStatusIndicator = (status) => {
+  // Filtrar campañas según los filtros seleccionados
+  const filteredCampaigns = campaigns.filter(campaign => {
+    // Filtro por estado
+    if (selectedEstado === "Activas" && campaign.status !== "processing") return false;
+    if (selectedEstado === "Pausadas" && campaign.status !== "paused") return false;
+    if (selectedEstado === "Terminadas" && 
+      campaign.status !== "completed" && 
+      campaign.status !== "cancelled" && 
+      campaign.status !== "failed") return false;
+    // Si es "Todas", no filtramos por estado
+    
+    // Filtro por tipo
+    if (selectedTipo === "Mensajes" && campaign.campaignType !== "send_messages") return false;
+    if (selectedTipo === "Comentarios" && campaign.campaignType !== "send_comments") return false;
+    if (selectedTipo === "Seguimientos" && campaign.campaignType !== "follow_users") return false;
+    // Si es "Todos", no filtramos por tipo
+    
+    return true;
+  });
+
+  // Función para abrir/cerrar un dropdown
+  const toggleDropdown = (name, event) => {
+    event.stopPropagation();
+    setDropdownState(prev => ({
+      estado: name === 'estado' ? !prev.estado : false,
+      tipo: name === 'tipo' ? !prev.tipo : false
+    }));
+  };
+
+  // Función para seleccionar una opción
+  const selectOption = (name, value, event) => {
+    event.stopPropagation();
+    if (name === 'estado') {
+      setSelectedEstado(value);
+    } else if (name === 'tipo') {
+      setSelectedTipo(value);
+    }
+    setDropdownState(prev => ({...prev, [name]: false}));
+  };
+
+  // Cerrar dropdowns al hacer clic fuera
+  useEffect(() => {
+    const closeDropdowns = () => {
+      setDropdownState({estado: false, tipo: false});
+    };
+    
+    document.addEventListener('click', closeDropdowns);
+    return () => document.removeEventListener('click', closeDropdowns);
+  }, []);
+
+  // Función para mapear estado a estilo de badge
+  const getStatusBadge = (status) => {
     switch (status) {
       case 'processing':
-        return <FaSpinner className="animate-spin text-blue-500" title="En progreso" />;
+        return {
+          text: 'Activa',
+          className: 'bg-green-100 text-green-800'
+        };
+      case 'paused':
+        return {
+          text: 'Pausada',
+          className: 'bg-yellow-100 text-yellow-800'
+        };
       case 'completed':
-        return <FaCheckCircle className="text-green-500" title="Completada" />;
-      case 'failed':
-        return <FaTimesCircle className="text-red-500" title="Fallida" />;
       case 'cancelled':
-        return <FaStopCircle className="text-orange-500" title="Cancelada" />;
+      case 'failed':
+        return {
+          text: 'Terminada',
+          className: 'bg-red-100 text-red-800'
+        };
       default:
-        return <FaInfoCircle className="text-gray-500" title="Estado desconocido" />;
+        return {
+          text: 'Desconocido',
+          className: 'bg-gray-100 text-gray-800'
+        };
     }
   };
 
-  // Función para expandir/colapsar detalles de campaña
-  const toggleCampaignDetails = (campaignId) => {
-    setSelectedCampaignId(prev => prev === campaignId ? null : campaignId);
-    
-    // Registrar la acción
-    if (user) {
-      logApiRequest({
-        endpoint: "internal/toggle_campaign_details",
-        requestData: { campaignId },
-        userId: user.uid,
-        status: "success",
-        source: "CampaignsPanel",
-        metadata: {
-          action: "toggle_campaign_details",
-          campaignId,
-          newState: selectedCampaignId === campaignId ? "collapsed" : "expanded"
-        }
-      });
-    }
-  };
-
-  // Renderizar barra de progreso
-  const renderProgressBar = (progress) => {
-    const progressValue = typeof progress === 'number' ? progress : 0;
-    
+  // Renderizar spinner de carga
+  if (loading && campaigns.length === 0) {
     return (
-      <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-        <div
-          className="bg-blue-600 h-2.5 rounded-full"
-          style={{ width: `${progressValue}%` }}
-        ></div>
-      </div>
-    );
-  };
-
-  // Renderizar detalles completos de la campaña
-  const renderCampaignDetails = (campaign) => {
-    if (selectedCampaignId !== campaign.id) return null;
-    
-    const timeElapsed = formatElapsedTime(campaign.createdAt, campaign.status === 'processing' ? new Date() : campaign.endedAt || campaign.lastUpdated);
-    
-    return (
-      <div className="mt-2 bg-gray-50 p-3 rounded-md text-sm border border-gray-200">
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <p className="text-gray-600">Inicio: {campaign.createdAt.toLocaleString()}</p>
-            <p className="text-gray-600">Tiempo: {timeElapsed}</p>
-            {campaign.targetUsers && (
-              <p className="text-gray-600">Usuarios objetivo: {campaign.targetUsers.length}</p>
-            )}
-          </div>
-          <div>
-            <p className="text-gray-600">Tipo: {campaign.campaignType}</p>
-            <p className="text-gray-600">Procesados: {campaign.totalProcessed || 0}</p>
-            {campaign.endpoint && (
-              <p className="text-gray-600 truncate" title={campaign.endpoint}>Endpoint: {campaign.endpoint}</p>
-            )}
-          </div>
-        </div>
-        
-        {campaign.status === 'processing' && (
-          <div className="mt-2">
-            <button
-              onClick={() => handleCancelCampaign(campaign.id)}
-              className="text-sm text-red-600 hover:text-red-800 font-medium"
-            >
-              Cancelar campaña
-            </button>
-          </div>
-        )}
-        
-        {campaign.error && (
-          <div className="mt-2 text-red-600 text-xs p-2 bg-red-50 rounded">
-            Error: {campaign.error}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  if (loading && activeCampaigns.length === 0 && recentCampaigns.length === 0) {
-    return (
-      <div className="p-4 bg-white rounded-lg shadow-sm flex justify-center items-center h-40">
-        <FaSpinner className="animate-spin text-blue-500 mr-2" />
-        <span>Cargando campañas...</span>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+        <span className="ml-2 text-gray-600">Cargando campañas...</span>
       </div>
     );
   }
 
+  // Definir una clase común para los botones
+  const buttonClass = "bg-white text-black py-4 px-6 rounded-full border border-gray-200 flex items-center gap-2 h-16 text-lg";
+  const menuItemClass = "block w-full text-left px-5 py-3 text-black text-lg hover:bg-gray-50";
+
   return (
-    <div className="p-4 bg-white rounded-lg shadow-sm">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Campañas Activas</h2>
-        <button
-          onClick={() => setRefreshKey(prev => prev + 1)}
-          className="text-white bg-blue-500 text-sm"
+    <div className="w-full bg-[#edf0ff] min-h-screen">
+      {/* Botones de filtro y acción */}
+      <div className="flex space-x-4 mb-8 px-5 pt-6">
+        {/* Nueva Campaña button */}
+        <button 
+          className={buttonClass}
+          onClick={() => {/* Implementar lógica de nueva campaña */}}
         >
-          Actualizar
+          <img src="/assets/add-square.png" alt="Add" className="w-6 h-6" />
+          <span>Nueva Campaña</span>
         </button>
+        
+        {/* Estado dropdown */}
+<div className="relative">
+  <button 
+    className={buttonClass}
+    onClick={(e) => toggleDropdown('estado', e)}
+  >
+    <span>{selectedEstado}</span>
+    <svg 
+      className={`w-5 h-5 ml-2 transition-transform duration-200 ${dropdownState.estado ? 'rotate-180' : ''}`} 
+      fill="none" 
+      stroke="currentColor" 
+      viewBox="0 0 24 24" 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+    </svg>
+  </button>
+  
+  {dropdownState.estado && (
+  <div className="absolute top-full left-0 mt-2 w-64 bg-blue-100 rounded-lg z-20 py-2">
+    {estadoOptions.map((option) => (
+      <button
+        key={option}
+        className="block w-full text-left px-5 py-3 text-black bg-white text-lg hover:bg-gray-200 whitespace-nowrap"
+        onClick={(e) => selectOption('estado', option, e)}
+      >
+        {option}
+      </button>
+    ))}
+  </div>
+)}
+</div>
+
+{/* Tipo dropdown */}
+<div className="relative">
+  <button 
+    className={buttonClass}
+    onClick={(e) => toggleDropdown('tipo', e)}
+  >
+    <span>{selectedTipo}</span>
+    <svg 
+      className={`w-5 h-5 ml-2 transition-transform duration-200 ${dropdownState.tipo ? 'rotate-180' : ''}`} 
+      fill="none" 
+      stroke="currentColor" 
+      viewBox="0 0 24 24" 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+    </svg>
+  </button>
+  
+  {dropdownState.tipo && (
+  <div className="absolute top-full left-0 mt-2 w-64 bg-blue-100 rounded-lg z-20 py-2">
+    {tipoOptions.map((option) => (
+      <button
+        key={option}
+        className="block w-full text-left px-5 py-3 bg-white text-black text-lg hover:bg-gray-200 whitespace-nowrap"
+        onClick={(e) => selectOption('tipo', option, e)}
+      >
+        {option}
+      </button>
+    ))}
+  </div>
+)}
+</div>
       </div>
 
-      {activeCampaigns.length === 0 ? (
-        <div className="text-center py-6 text-gray-500">
-          No hay campañas activas en este momento
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {activeCampaigns.map(campaign => (
-            <div
-              key={campaign.id}
-              className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition"
-            >
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  {renderStatusIndicator(campaign.status)}
-                  <h3 className="font-medium">{campaign.name}</h3>
+      {/* Lista de campañas */}
+      <div className="space-y-5 px-5">
+        {filteredCampaigns.length === 0 ? (
+          <div className="text-center py-8 bg-white rounded-lg">
+            <p className="text-gray-500">No hay campañas que coincidan con el filtro seleccionado.</p>
+          </div>
+        ) : (
+          filteredCampaigns.map(campaign => {
+            const statusBadge = getStatusBadge(campaign.status);
+            
+            return (
+              <div 
+                key={campaign.id}
+                className="bg-white rounded-lg overflow-hidden flex items-center justify-between p-5"
+              >
+                {/* Icono y nombre de campaña */}
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 13.4876 3.36093 14.891 4 16.1272L3 21L7.8728 20C9.10904 20.6391 10.5124 21 12 21Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M12 12V12.01" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M8 12V12.01" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M16 12V12.01" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="font-medium text-lg">Influencers Fitness</h3>
+                    <p className="text-sm text-gray-500">Enviar Mensajes</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <span><FaClock className="inline mr-1" /> {formatElapsedTime(campaign.createdAt)}</span>
-                  <button
-                    onClick={() => toggleCampaignDetails(campaign.id)}
-                    className="text-blue-500 hover:text-blue-700"
-                  >
-                    {selectedCampaignId === campaign.id ? 'Menos' : 'Más'}
+
+                {/* Estado y menú */}
+                <div className="flex items-center">
+                  <span className={`px-8 py-3 rounded-full text-sm font-medium ${
+                    campaign.status === 'processing' ? 'bg-green-100 text-green-800' :
+                    campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-800' : 
+                    'bg-red-100 text-red-800'
+                  }`}>
+                    {campaign.status === 'processing' ? 'Activa' :
+                     campaign.status === 'paused' ? 'Pausada' : 'Terminada'}
+                  </span>
+                  <button className="ml-4 text-gray-400">
+                    <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 13a1 1 0 100-2 1 1 0 000 2z" fill="#666"/>
+                      <path d="M12 6a1 1 0 100-2 1 1 0 000 2z" fill="#666"/>
+                      <path d="M12 20a1 1 0 100-2 1 1 0 000 2z" fill="#666"/>
+                    </svg>
                   </button>
                 </div>
               </div>
-              
-              <div className="mt-2">
-                {renderProgressBar(campaign.progress)}
-                <div className="flex justify-between text-xs mt-1">
-                  <span>{campaign.progress}% completado</span>
-                  <span>{campaign.totalProcessed || 0} procesados</span>
-                </div>
-              </div>
-              
-              {renderCampaignDetails(campaign)}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Campañas recientes */}
-      <div className="mt-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">
-            <button
-              onClick={() => setShowRecent(!showRecent)}
-              className="flex items-center focus:outline-none"
-            >
-              <span>Campañas Recientes</span>
-              <span className="ml-2">{showRecent ? '▲' : '▼'}</span>
-            </button>
-          </h2>
-          <span className="text-sm text-gray-500">{recentCampaigns.length} campañas</span>
-        </div>
-
-        {showRecent && (
-          <div className="space-y-2">
-            {recentCampaigns.length === 0 ? (
-              <div className="text-center py-6 text-gray-500">
-                No hay campañas recientes para mostrar
-              </div>
-            ) : (
-              recentCampaigns.map(campaign => (
-                <div
-                  key={campaign.id}
-                  className={`border ${
-                    campaign.status === 'completed'
-                      ? 'border-green-200 bg-green-50'
-                      : campaign.status === 'failed'
-                      ? 'border-red-200 bg-red-50'
-                      : campaign.status === 'cancelled' 
-                      ? 'border-orange-200 bg-orange-50'
-                      : 'border-gray-200 bg-white'
-                  } rounded-lg p-3`}
-                >
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      {renderStatusIndicator(campaign.status)}
-                      <h3 className="font-medium">{campaign.name}</h3>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {campaign.createdAt.toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div className="mt-1 text-xs text-gray-600">
-                    {campaign.campaignType} - {campaign.totalProcessed || 0} usuarios procesados
-                    {campaign.error && (
-                      <div className="mt-1 text-red-600">
-                        <FaExclamationTriangle className="inline mr-1" />
-                        Error: {campaign.error}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+            );
+          })
         )}
       </div>
     </div>

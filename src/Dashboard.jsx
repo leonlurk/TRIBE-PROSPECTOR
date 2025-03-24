@@ -18,6 +18,7 @@ import StatisticsDashboard from "./components/StatisticsDashboard";
 import NuevaCampanaModal from "./components/NuevaCampanaModal";
 
 
+
 const API_BASE_URL = "https://alets.com.ar";
 
 // Genera un deviceId simulado
@@ -70,7 +71,6 @@ const Dashboard = () => {
 
   const handleSidebarOptionChange = (option) => {
     if (option === "Nueva Campaña") {
-      // En lugar de cambiar el selectedOption, abrir el modal
       setIsNewCampaignModalOpen(true);
       setShowSidebar(false); // Cerrar el sidebar en móviles si está abierto
     } else {

@@ -4,6 +4,7 @@ import { FaArrowRight, FaTimes, FaTrash } from "react-icons/fa";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import logApiRequest from "../requestLogger";
+import { instagramApi } from "../instagramApi"; 
 
 
 const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
@@ -12,6 +13,10 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
   const [targetLink, setTargetLink] = useState("");
   const [targetType, setTargetType] = useState(""); // "perfil" o "publicacion"
   const [isProspecting, setIsProspecting] = useState(false);
+  const [mediaFile, setMediaFile] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
+  const [mediaType, setMediaType] = useState("image"); // "image" o "video"
+  const [mediaCaption, setMediaCaption] = useState("");
   
   // Para el paso 2 - Objetivos y filtros
   const [objectives, setObjectives] = useState({
@@ -28,13 +33,16 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
     seguir: false,
     enviarMensaje: false,
     darLikes: false,
-    comentar: false
+    comentar: false,
+    enviarMedia: false
   });
   
   // Para el paso 3 - Usuarios y mensajes
   const [users, setUsers] = useState([]);
   const [mensaje, setMensaje] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   
   // Reset el estado cuando se abre/cierra el modal
   useEffect(() => {
@@ -42,7 +50,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       setStep(1);
       setCampaignName("");
       setTargetLink("");
-      setTargetType("");
+      setTargetType("publicacion");
       setIsProspecting(false);
       setObjectives({
         comentarios: false,
@@ -56,25 +64,627 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         seguir: false,
         enviarMensaje: false,
         darLikes: false,
-        comentar: false
+        comentar: false,
+        enviarMedia: false  // Resetear la nueva tarea
       });
       setUsers([]);
       setMensaje("");
       setSelectedTemplate(null);
+      setLoading(false);
+      setError("");
+      
+      // Resetear estados de media
+      setMediaFile(null);
+      setMediaPreview(null);
+      setMediaType("image");
+      setMediaCaption("");
     }
   }, [isOpen]);
   
-  const handleNext = () => {
+  const sendMedia = async () => {
+    if (users.length === 0) {
+      setError("No hay usuarios para enviar medios");
+      return;
+    }
+    
+    if (!mediaFile) {
+      setError("Debes seleccionar un archivo de imagen o video");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+    
+    try {
+      // Log the send media attempt
+      if (user) {
+        await logApiRequest({
+          endpoint: "/enviar_media",
+          requestData: { 
+            usuarios_count: users.length,
+            media_type: mediaType
+          },
+          userId: user.uid,
+          status: "pending",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "send_media",
+            usersCount: users.length,
+            mediaType: mediaType,
+            postLink: targetLink || null
+          }
+        });
+      }
+      
+      // Usar la API centralizada para enviar medios
+      const data = await instagramApi.sendMedia(
+        users,
+        mediaFile,
+        mediaType,
+        mediaCaption,
+        false // skipExisting
+      );
+      
+      // Log the response
+      if (user) {
+        await logApiRequest({
+          endpoint: "/enviar_media",
+          requestData: { 
+            usuarios_count: users.length,
+            media_type: mediaType
+          },
+          userId: user.uid,
+          responseData: { 
+            status: data.status,
+            sentCount: data.sent_count || 0,
+            failedCount: data.failed_count || 0
+          },
+          status: data.status === "success" ? "success" : "completed",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "send_media",
+            usersCount: users.length,
+            mediaType: mediaType,
+            postLink: targetLink,
+            sentCount: data.sent_count || 0,
+            failedCount: data.failed_count || 0
+          }
+        });
+      }
+      
+      setError(null);
+      alert(`Medios enviados exitosamente a ${data.sent_count || 0} usuarios`);
+      
+    } catch (error) {
+      console.error("Error al enviar medios:", error);
+      setError("Error al enviar medios: " + error.message);
+      
+      // Log the error
+      if (user) {
+        await logApiRequest({
+          endpoint: "/enviar_media",
+          requestData: { 
+            usuarios_count: users.length,
+            media_type: mediaType
+          },
+          userId: user.uid,
+          status: "error",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "send_media",
+            error: error.message,
+            usersCount: users.length,
+            mediaType: mediaType,
+            postLink: targetLink
+          }
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Validar tipo de archivo
+    const fileType = file.type;
+    if (fileType.startsWith('image/')) {
+      setMediaType("image");
+    } else if (fileType.startsWith('video/')) {
+      setMediaType("video");
+    } else {
+      setError("Tipo de archivo no soportado. Por favor, selecciona una imagen o video.");
+      return;
+    }
+    
+    // Establecer el archivo
+    setMediaFile(file);
+    
+    // Generar una vista previa
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setMediaPreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+    
+    // Limpiar cualquier error previo
+    setError(null);
+  };
+
+  const sendMessages = async () => {
+    if (users.length === 0) {
+      setError("No hay usuarios para enviar mensajes");
+      return;
+    }
+    
+    if (!mensaje.trim()) {
+      setError("El mensaje no puede estar vacío");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+    
+    try {
+      // Log the send messages attempt
+      if (user) {
+        await logApiRequest({
+          endpoint: "/enviar_mensajes_multiple",
+          requestData: { 
+            usuarios_count: users.length,
+            mensaje_length: mensaje.length,
+            template_id: selectedTemplate ? selectedTemplate.id : null
+          },
+          userId: user.uid,
+          status: "pending",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "send_messages",
+            usersCount: users.length,
+            messageLength: mensaje.length,
+            templateId: selectedTemplate ? selectedTemplate.id : null,
+            templateName: selectedTemplate ? selectedTemplate.name : null, 
+            postLink: targetLink || null
+          }
+        });
+      }
+      
+      // Usar la API centralizada para enviar mensajes
+      const data = await instagramApi.sendMessages(users, mensaje, false);
+      
+      // Log the response
+      if (user) {
+        await logApiRequest({
+          endpoint: "/enviar_mensajes_multiple",
+          requestData: { 
+            usuarios_count: users.length,
+            mensaje_length: mensaje.length,
+            template_id: selectedTemplate?.id
+          },
+          userId: user.uid,
+          responseData: { 
+            status: data.status,
+            sentCount: data.sent_count || 0,
+            failedCount: data.failed_count || 0
+          },
+          status: data.status === "success" ? "success" : "completed",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "send_messages",
+            usersCount: users.length,
+            messageLength: mensaje.length,
+            templateId: selectedTemplate?.id,
+            templateName: selectedTemplate?.name,
+            postLink: targetLink,
+            sentCount: data.sent_count || 0,
+            failedCount: data.failed_count || 0
+          }
+        });
+      }
+      
+      setError(null);
+      alert(`Mensajes enviados exitosamente a ${data.sent_count || 0} usuarios`);
+      
+    } catch (error) {
+      console.error("Error al enviar mensajes:", error);
+      setError("Error al enviar mensajes: " + error.message);
+      
+      // Log the error
+      if (user) {
+        await logApiRequest({
+          endpoint: "/enviar_mensajes_multiple",
+          requestData: { 
+            usuarios_count: users.length,
+            mensaje_length: mensaje.length,
+            template_id: selectedTemplate?.id
+          },
+          userId: user.uid,
+          status: "error",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "send_messages",
+            error: error.message,
+            usersCount: users.length,
+            messageLength: mensaje.length,
+            templateId: selectedTemplate?.id,
+            templateName: selectedTemplate?.name,
+            postLink: targetLink
+          }
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCommentsFromPost = async () => {
+    if (!targetLink.trim()) {
+      setError("Debes ingresar un enlace a una publicación");
+      return false;
+    }
+    
+    setLoading(true);
+    setError("");
+    
+    try {
+      // Log the request
+      if (user) {
+        await logApiRequest({
+          endpoint: "/get_comments",
+          requestData: { post_url: targetLink },
+          userId: user.uid,
+          status: "pending",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "get_comments",
+            postLink: targetLink
+          }
+        });
+      }
+      
+      // Usar la API centralizada
+      const data = await instagramApi.getComments(targetLink);
+      
+      const followAllUsers = async () => {
+  if (users.length === 0) {
+    setError("No hay usuarios para seguir");
+    return;
+  }
+  
+  setLoading(true);
+  setError("");
+  
+  try {
+    // Log the follow users attempt
+    if (user) {
+      await logApiRequest({
+        endpoint: "/seguir_usuarios",
+        requestData: { 
+          usuarios_count: users.length
+        },
+        userId: user.uid,
+        status: "pending",
+        source: "NuevaCampanaModal",
+        metadata: {
+          action: "follow_users",
+          usersCount: users.length,
+          postLink: targetLink
+        }
+      });
+    }
+    
+    // Usar la API centralizada para seguir usuarios
+    const data = await instagramApi.followUsers(users);
+    
+    // Log the response
+    if (user) {
+      await logApiRequest({
+        endpoint: "/seguir_usuarios",
+        requestData: { 
+          usuarios_count: users.length
+        },
+        userId: user.uid,
+        responseData: { 
+          status: data.status,
+          followedCount: data.followed_count || 0,
+          skippedCount: data.skipped_count || 0
+        },
+        status: data.status === "success" ? "success" : "completed",
+        source: "NuevaCampanaModal",
+        metadata: {
+          action: "follow_users",
+          usersCount: users.length,
+          postLink: targetLink,
+          followedCount: data.followed_count || 0,
+          skippedCount: data.skipped_count || 0
+        }
+      });
+    }
+    
+    setError(null);
+    alert(`Se han seguido exitosamente a ${data.followed_count || 0} usuarios`);
+    
+  } catch (error) {
+    console.error("Error al seguir usuarios:", error);
+    setError("Error al seguir usuarios: " + error.message);
+    
+    // Log the error
+    if (user) {
+      await logApiRequest({
+        endpoint: "/seguir_usuarios",
+        requestData: { 
+          usuarios_count: users.length
+        },
+        userId: user.uid,
+        status: "error",
+        source: "NuevaCampanaModal",
+        metadata: {
+          action: "follow_users",
+          error: error.message,
+          usersCount: users.length,
+          postLink: targetLink
+        }
+      });
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
+      const getFollowersFromProfile = async () => {
+        // Validar que el targetLink sea un perfil y extraer username
+        const usernameMatch = targetLink.match(/instagram\.com\/([^\/\?]+)/);
+        if (!usernameMatch || !usernameMatch[1]) {
+          setError("No se pudo extraer el nombre de usuario del enlace de perfil");
+          return false;
+        }
+        
+        const username = usernameMatch[1];
+        setLoading(true);
+        setError("");
+        
+        try {
+          // Log the request
+          if (user) {
+            await logApiRequest({
+              endpoint: "/get_followers",
+              requestData: { username, amount: 50 },
+              userId: user.uid,
+              status: "pending",
+              source: "NuevaCampanaModal",
+              metadata: {
+                action: "get_followers",
+                username,
+                amount: 50
+              }
+            });
+          }
+          
+          // Usar la API centralizada
+          const data = await instagramApi.getFollowers(username);
+          
+          // Log the response
+          if (user) {
+            await logApiRequest({
+              endpoint: "/get_followers",
+              requestData: { username, amount: 50 },
+              userId: user.uid,
+              responseData: { 
+                status: data.status,
+                followersCount: data.followers?.length || 0
+              },
+              status: data.status === "success" ? "success" : "completed",
+              source: "NuevaCampanaModal",
+              metadata: {
+                action: "get_followers",
+                username,
+                followersCount: data.followers?.length || 0
+              }
+            });
+          }
+          
+          if (data.status === "success" && data.followers) {
+            setUsers(data.followers);
+            return true;
+          } else {
+            setError("Error al obtener seguidores: " + (data.message || "Error desconocido"));
+            return false;
+          }
+        } catch (error) {
+          console.error("Error obteniendo seguidores:", error);
+          setError("Error de conexión o problema de red");
+          
+          // Log the error
+          if (user) {
+            await logApiRequest({
+              endpoint: "/get_followers",
+              requestData: { username, amount: 50 },
+              userId: user.uid,
+              status: "error",
+              source: "NuevaCampanaModal",
+              metadata: {
+                action: "get_followers",
+                error: error.message,
+                username
+              }
+            });
+          }
+          return false;
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      // Log the response
+      if (user) {
+        await logApiRequest({
+          endpoint: "/get_comments",
+          requestData: { post_url: targetLink },
+          userId: user.uid,
+          responseData: { 
+            status: data.status,
+            commentsCount: data.comments?.length || 0
+          },
+          status: data.status === "success" ? "success" : "completed",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "get_comments",
+            postLink: targetLink,
+            commentsCount: data.comments?.length || 0
+          }
+        });
+      }
+      
+      if (data.status === "success" && data.comments) {
+        // Extraer los nombres de usuario de los comentarios
+        const commentUsers = data.comments.map(comment => comment.user);
+        setUsers(commentUsers);
+        return true;
+      } else {
+        setError("Error al obtener comentarios: " + (data.message || "Error desconocido"));
+        return false;
+      }
+    } catch (error) {
+      console.error("Error obteniendo comentarios:", error);
+      setError("Error de conexión o problema de red");
+      
+      // Log the error
+      if (user) {
+        await logApiRequest({
+          endpoint: "/get_comments",
+          requestData: { post_url: targetLink },
+          userId: user.uid,
+          status: "error",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "get_comments",
+            error: error.message,
+            postLink: targetLink
+          }
+        });
+      }
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getLikesFromPost = async () => {
+    if (!targetLink.trim()) {
+      setError("Debes ingresar un enlace a una publicación");
+      return false;
+    }
+    
+    setLoading(true);
+    setError("");
+    
+    try {
+      // Log the get likes attempt
+      if (user) {
+        await logApiRequest({
+          endpoint: "/obtener_likes",
+          requestData: { link: targetLink },
+          userId: user.uid,
+          status: "pending",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "get_likes",
+            postLink: targetLink
+          }
+        });
+      }
+      
+      // Usar la API centralizada
+      const data = await instagramApi.getLikes(targetLink);
+      
+      console.log("Respuesta completa:", data);
+      
+      // Log the response
+      if (user) {
+        await logApiRequest({
+          endpoint: "/obtener_likes",
+          requestData: { link: targetLink },
+          userId: user.uid,
+          responseData: { 
+            status: data.status,
+            likesCount: data.likes?.length || 0
+          },
+          status: data.status === "success" ? "success" : "completed",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "get_likes",
+            postLink: targetLink,
+            usersCount: data.likes?.length || 0
+          }
+        });
+      }
+      
+      if (data.status === "success") {
+        setUsers(data.likes);
+        return true;
+      } else {
+        setError("Error al obtener likes: " + (data.message || "Error desconocido"));
+        return false;
+      }
+    } catch (error) {
+      console.error("Ocurrió un error al conectar con la API:", error);
+      setError("Error de conexión o problema de red.");
+      
+      // Log the error
+      if (user) {
+        await logApiRequest({
+          endpoint: "/obtener_likes",
+          requestData: { link: targetLink },
+          userId: user.uid,
+          status: "error",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "get_likes",
+            error: error.message,
+            postLink: targetLink
+          }
+        });
+      }
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const handleNext = async () => {
+    // Resetear mensajes de error
+    setError("");
+    
     // Validaciones básicas
     if (step === 1) {
       if (!campaignName.trim()) {
-        alert("Debes ingresar un nombre para la campaña");
+        setError("Debes ingresar un nombre para la campaña");
         return;
       }
       if (!targetLink.trim()) {
-        alert("Debes ingresar un link de perfil o publicación");
+        setError("Debes ingresar un link de perfil o publicación");
         return;
       }
+      
+      // Validar el formato del link
+      if (!targetLink.includes("instagram.com")) {
+        setError("El enlace debe ser de Instagram");
+        return;
+      }
+      
+      // Determinar si es un perfil o una publicación
+      if (targetLink.includes("/p/")) {
+        setTargetType("publicacion");
+      } else {
+        setTargetType("perfil");
+      }
+      
+      // Avanzar al siguiente paso
+      setStep(step + 1);
+      return;
     }
     
     if (step === 2) {
@@ -83,50 +693,64 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       const hasTask = Object.values(tasks).some(val => val);
       
       if (!hasObjective) {
-        alert("Debes seleccionar al menos un objetivo");
+        setError("Debes seleccionar al menos un objetivo");
         return;
       }
       
       if (!hasTask) {
-        alert("Debes seleccionar al menos una tarea");
+        setError("Debes seleccionar al menos una tarea");
         return;
       }
       
-      // Simular la obtención de usuarios basados en los objetivos seleccionados
-      // En un caso real, aquí llamarías a tu API
-      const mockUsers = [
-        "username1", "username2", "username3", 
-        "username4", "username5", "username6"
-      ];
-      setUsers(mockUsers);
+      // Obtener usuarios según los objetivos seleccionados
+      let success = false;
+      
+      if (objectives.likes) {
+        success = await getLikesFromPost();
+      } else if (objectives.comentarios) {
+        success = await getCommentsFromPost();
+      } else if (objectives.seguidores) {
+        success = await getFollowersFromProfile();
+      }
+      
+      if (success && users.length > 0) {
+        setStep(step + 1);
+      } else if (users.length === 0) {
+        setError("No se pudieron obtener usuarios para la campaña");
+      }
+      
+      return;
     }
     
     if (step === 3) {
       // Aquí iría la lógica para completar la campaña
       if (tasks.enviarMensaje && !mensaje.trim()) {
-        alert("Debes escribir un mensaje para enviar");
+        setError("Debes escribir un mensaje para enviar");
         return;
       }
       
       // Crear la campaña en Firestore
-      createCampaign();
+      await createCampaign();
+      
+      // Avanzar al paso 4
+      setStep(4);
     }
-    
-    // Avanzar al siguiente paso si no hay errores
-    setStep(step + 1);
   };
   
   const createCampaign = async () => {
     try {
       if (!user?.uid) {
-        alert("Debes iniciar sesión para crear campañas");
+        setError("Debes iniciar sesión para crear campañas");
         return;
       }
+      
+      setLoading(true);
       
       // Preparar los datos de la campaña
       const campaignData = {
         name: campaignName,
         targetLink,
+        targetType,
         isProspecting,
         objectives,
         filters,
@@ -158,12 +782,31 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         }
       });
       
-      alert("Campaña creada con éxito");
-      onClose(); // Cerrar el modal
+      // Ejecutar las tareas seleccionadas
+      const taskPromises = [];
+      
+      if (tasks.seguir) {
+        taskPromises.push(followAllUsers());
+      }
+      
+      if (tasks.enviarMensaje) {
+        taskPromises.push(sendMessages());
+      }
+      
+      if (tasks.enviarMedia && mediaFile) {
+        taskPromises.push(sendMedia());
+      }
+      
+      // Esperar a que todas las tareas se completen
+      if (taskPromises.length > 0) {
+        await Promise.all(taskPromises);
+      }
+      
+      setError(null);
       
     } catch (error) {
       console.error("Error al crear la campaña:", error);
-      alert("Error al crear la campaña");
+      setError("Error al crear la campaña: " + error.message);
       
       // Log del error
       await logApiRequest({
@@ -177,6 +820,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           error: error.message
         }
       });
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -198,6 +843,12 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         
         {/* Contenido dinámico según el paso */}
         <div className="p-5">
+           {/* Mensaje de error */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+                {error}
+              </div>
+            )}
           {step === 1 && (
             <>
               <div className="mb-4">
@@ -223,15 +874,16 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
               </div>
               
               <div className="mb-4">
-                <label className="flex items-center space-x-2">
-                  <input 
-                    type="checkbox"
-                    checked={isProspecting}
-                    onChange={(e) => setIsProspecting(e.target.checked)}
-                    className="w-5 h-5"
-                  />
-                  <span className="text-lg text-black">Prospectar lista de seguimiento</span>
-                </label>
+              <label className="flex items-center space-x-2">
+                <input 
+                  type="checkbox"
+                  checked={tasks.enviarMedia}
+                  onChange={(e) => setTasks({...tasks, enviarMedia: e.target.checked})}
+                  className="w-5 h-5"
+                  disabled={loading}
+                />
+                <span>Enviar fotos o videos</span>
+              </label>
               </div>
             </>
           )}
@@ -388,9 +1040,13 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
                     </div>
                   ))}
                 </div>
-                <button className="w-full bg-black text-white rounded-full py-2 mt-2">
-                  Seguir a todos
-                </button>
+                <button 
+              className="w-full bg-black text-white rounded-full py-2 mt-2"
+              onClick={followAllUsers}
+              disabled={loading || users.length === 0}
+            >
+              {loading ? "Procesando..." : "Seguir a todos"}
+            </button>
               </div>
               
               {/* Panel de mensajes */}
@@ -431,6 +1087,67 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
                   </div>
                 </div>
               )}
+              {/* Panel de envío de medios */}
+    {tasks.enviarMedia && (
+      <div className="flex-1 bg-gray-100 rounded-lg p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-semibold text-black">Enviar Media</h3>
+        </div>
+    
+       <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        Selecciona una imagen o video
+      </label>
+      <input
+        type="file"
+        accept="image/*,video/*"
+        onChange={handleFileSelect}
+        className="w-full p-2 border rounded-lg bg-white text-black"
+        disabled={loading}
+      />
+    </div>
+    
+    {mediaPreview && (
+      <div className="mb-4 text-center">
+        <p className="text-sm text-gray-600 mb-2">Vista previa:</p>
+        {mediaType === "image" ? (
+          <img 
+            src={mediaPreview} 
+            alt="Preview" 
+            className="max-h-32 rounded border inline-block"
+          />
+        ) : (
+          <video 
+            src={mediaPreview} 
+            controls 
+            className="max-h-32 rounded border inline-block"
+          />
+        )}
+      </div>
+        )}
+        
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Pie de foto/video (opcional)
+          </label>
+          <textarea
+            value={mediaCaption}
+            onChange={(e) => setMediaCaption(e.target.value)}
+            className="w-full h-24 p-3 border rounded-lg resize-none bg-white text-black"
+            placeholder="Escribe un pie de foto o descripción (opcional)"
+            disabled={loading}
+          ></textarea>
+        </div>
+        
+        <button 
+          className="w-full bg-indigo-600 text-white rounded-full py-2 mt-3"
+          onClick={sendMedia}
+          disabled={loading || users.length === 0 || !mediaFile}
+        >
+          {loading ? "Enviando..." : "Enviar media"}
+        </button>
+      </div>
+    )}
             </div>
           )}
           
@@ -470,8 +1187,21 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
             <button 
               onClick={handleNext}
               className="px-8 py-3 bg-black text-white rounded-lg flex items-center"
+              disabled={loading}
             >
-              Siguiente <FaArrowRight className="ml-2" />
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Procesando...
+                </>
+              ) : (
+                <>
+                  Siguiente <FaArrowRight className="ml-2" />
+                </>
+              )}
             </button>
           </div>
         )}

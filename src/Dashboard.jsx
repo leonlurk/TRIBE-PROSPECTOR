@@ -15,6 +15,7 @@ import { getInstagramSession, clearInstagramSession } from "./instagramSessionUt
 import CampaignsPanel from "./components/CampaignsPanel";
 import HomeDashboard from "./components/HomeDashboard";
 import StatisticsDashboard from "./components/StatisticsDashboard";
+import NuevaCampanaModal from "./components/NuevaCampanaModal";
 
 
 const API_BASE_URL = "https://alets.com.ar";
@@ -57,6 +58,7 @@ const Dashboard = () => {
   const [showSidebar, setShowSidebar] = useState(false);
   const [showBlacklistPanel, setShowBlacklistPanel] = useState(false);
   const [showCampaignsPanel, setShowCampaignsPanel] = useState(false);
+  const [isNewCampaignModalOpen, setIsNewCampaignModalOpen] = useState(false);
 
   // Notificación simple
   const showNotification = (message, type = "info") => {
@@ -64,6 +66,17 @@ const Dashboard = () => {
     setTimeout(() => {
       setNotification({ show: false, message: "", type: "" });
     }, 3000);
+  };
+
+  const handleSidebarOptionChange = (option) => {
+    if (option === "Nueva Campaña") {
+      // En lugar de cambiar el selectedOption, abrir el modal
+      setIsNewCampaignModalOpen(true);
+      setShowSidebar(false); // Cerrar el sidebar en móviles si está abierto
+    } else {
+      setSelectedOption(option);
+      setShowSidebar(false);
+    }
   };
 
   const types = ["Plantillas de mensajes", "Plantillas de comentarios"];
@@ -376,16 +389,18 @@ const Dashboard = () => {
       return (
         <div className="p-4 md:p-6 bg-[#EEF0FF] min-h-screen">
           <CampaignsPanel 
-            user={user} 
-            onRefreshStats={() => {
-              // Opcional: Añade aquí lógica para actualizar estadísticas generales
-            }}
-          />
+  user={user} 
+  onRefreshStats={() => {
+    // Opcional: Añade aquí lógica para actualizar estadísticas generales
+  }}
+  onCreateCampaign={() => {
+    console.log("Función onCreateCampaign invocada desde CampaignsPanel");
+    setIsNewCampaignModalOpen(true);
+  }}
+/>
         </div>
       );
     }
-
-    
 
     if (selectedOption === "Blacklist") {
       return (
@@ -396,7 +411,7 @@ const Dashboard = () => {
       );
     }
 
-    if (selectedOption === "Nueva solicitud") {
+    if (selectedOption === "Nueva Campaña") {
       if (!isInstagramConnected) {
         return (
           <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen flex justify-center items-center">
@@ -610,14 +625,11 @@ const Dashboard = () => {
     showSidebar ? "translate-x-0" : "-translate-x-full"
   } md:translate-x-0 md:flex md:h-screen md:z-auto`}
 >
-  <Sidebar
-    selectedOption={selectedOption}
-    setSelectedOption={(option) => {
-      setSelectedOption(option);
-      setShowSidebar(false);
-    }}
-    isInstagramConnected={isInstagramConnected}
-  />
+<Sidebar
+  selectedOption={selectedOption}
+  setSelectedOption={handleSidebarOptionChange}
+  isInstagramConnected={isInstagramConnected}
+/>
 </div>
 
       <div className="flex-1 p-2 md:p-6 overflow-auto pt-16 md:pt-6">{renderContent()}</div>
@@ -661,6 +673,12 @@ const Dashboard = () => {
           onClose={() => setShowBlacklistPanel(false)}
         />
       )}
+      <NuevaCampanaModal
+        isOpen={isNewCampaignModalOpen}
+        onClose={() => setIsNewCampaignModalOpen(false)}
+        user={user}
+        instagramToken={instagramToken}
+      />
     </div>
   );
 };

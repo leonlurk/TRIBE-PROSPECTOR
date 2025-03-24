@@ -5,7 +5,7 @@ import logApiRequest from "../requestLogger";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 
-const CampaignsPanel = ({ user, onRefreshStats }) => {
+const CampaignsPanel = ({ user, onRefreshStats, onCreateCampaign }) => {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -249,12 +249,19 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
       <div className="flex space-x-4 mb-8 px-5 pt-6">
         {/* Nueva Campaña button */}
         <button 
-          className={buttonClass}
-          onClick={() => {/* Implementar lógica de nueva campaña */}}
-        >
-          <img src="/assets/add-square.png" alt="Add" className="w-6 h-6" />
-          <span>Nueva Campaña</span>
-        </button>
+  className={buttonClass}
+  onClick={() => {
+    console.log("Botón Nueva Campaña presionado");
+    if (onCreateCampaign) {
+      onCreateCampaign();
+    } else {
+      console.log("Error: onCreateCampaign no está definido");
+    }
+  }}
+>
+  <img src="/assets/add-square.png" alt="Add" className="w-6 h-6" />
+  <span>Nueva Campaña</span>
+</button>
         
         {/* Estado dropdown */}
 <div className="relative">
@@ -341,15 +348,14 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
                 {/* Icono y nombre de campaña */}
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 13.4876 3.36093 14.891 4 16.1272L3 21L7.8728 20C9.10904 20.6391 10.5124 21 12 21Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M12 12V12.01" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M8 12V12.01" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M16 12V12.01" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                  <img 
+                    src="/assets/messages-2.png" 
+                    alt="Mensajes" 
+                    className="w-8 h-8 brightness-0 invert" 
+                  />
                   </div>
                   <div className="ml-4">
-                    <h3 className="font-medium text-lg">Influencers Fitness</h3>
+                    <h3 className="font-medium text-lg text-black">Influencers Fitness</h3>
                     <p className="text-sm text-gray-500">Enviar Mensajes</p>
                   </div>
                 </div>
@@ -364,12 +370,12 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
                     {campaign.status === 'processing' ? 'Activa' :
                      campaign.status === 'paused' ? 'Pausada' : 'Terminada'}
                   </span>
-                  <button className="ml-4 text-gray-400">
-                    <svg width="24" height="24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 13a1 1 0 100-2 1 1 0 000 2z" fill="#666"/>
-                      <path d="M12 6a1 1 0 100-2 1 1 0 000 2z" fill="#666"/>
-                      <path d="M12 20a1 1 0 100-2 1 1 0 000 2z" fill="#666"/>
-                    </svg>
+                  <button className="ml-4 text-gray-400 bg-transparent border-0 p-0">
+                    <img
+                      src="/assets/setting-5.png"
+                      alt="Opciones"
+                      className="w-12 h-12"
+                    />
                   </button>
                 </div>
               </div>
@@ -383,7 +389,8 @@ const CampaignsPanel = ({ user, onRefreshStats }) => {
 
 CampaignsPanel.propTypes = {
   user: PropTypes.object.isRequired,
-  onRefreshStats: PropTypes.func
+  onRefreshStats: PropTypes.func,
+  onCreateCampaign: PropTypes.func
 };
 
 export default CampaignsPanel;

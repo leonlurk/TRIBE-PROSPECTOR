@@ -13,11 +13,13 @@ const getMenuItems = (isInstagramConnected) => {
         { name: "Home", icon: "/assets/Home.png" },
         { name: "Plantillas", icon: "/assets/device-message.png" },
         { name: "Estadísticas", icon: "/assets/graph.png" },
-        { name: "Nueva solicitud", icon: "/assets/add-square.png" },
     ];
     
     if (isInstagramConnected) {
         baseMenuItems.push(
+            // Primero Campañas
+            { name: "Campañas", icon: "/assets/calendar.png" },
+            // Luego Listas
             { 
                 name: "Listas", 
                 icon: "/assets/note-2.png",
@@ -29,30 +31,37 @@ const getMenuItems = (isInstagramConnected) => {
                     }
                 ]
             },
-            { name: "Campañas", icon: "/assets/calendar.png" }
+            // Y finalmente Nueva Campaña (movido aquí al final)
+            { name: "Nueva Campaña", icon: "/assets/add-square.png" }
         );
-    }
-    
-    if (!isInstagramConnected) {
-        baseMenuItems.push({ 
-            name: "Conectar Instagram", 
-            icon: <FaInstagram className="w-5 h-5 md:w-6 md:h-6 text-white" /> 
-        });
+    } else {
+        // Si no está conectado a Instagram
+        baseMenuItems.push(
+            { 
+                name: "Conectar Instagram", 
+                icon: <FaInstagram className="w-5 h-5 md:w-6 md:h-6 text-white" /> 
+            },
+            // También movemos Nueva Campaña al final
+            { name: "Nueva Campaña", icon: "/assets/add-square.png" }
+        );
     }
     
     return baseMenuItems;
 };
 
 const bottomItems = [
-    { name: "Herramientas", icon: "/assets/mobile-programming.png" },
-    { name: "Ajustes", icon: "/assets/call-calling.png" },
-    { name: "Light Mode", icon: "/assets/setting-2.png" }
+    { name: "Herramientas", icon: "/assets/element-plus.png" },
+    { name: "Ajustes", icon: "/assets/setting-2.png" },
+    { name: "Light Mode", icon: "/assets/arrange-circle-2.png" }
 ];
 
 const Sidebar = ({ selectedOption = "", setSelectedOption = () => {}, isInstagramConnected = false }) => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [userData, setUserData] = useState({});
+    // Para controlar el estado de expansión del menú Listas
+    const [expandedMenu, setExpandedMenu] = useState("");
+    
     // Get filtered menu items based on Instagram connection status
     const menuItems = getMenuItems(isInstagramConnected);
 
@@ -115,64 +124,73 @@ const Sidebar = ({ selectedOption = "", setSelectedOption = () => {}, isInstagra
             </div>
 
             {/* Menú principal con imágenes */}
-            <nav className="flex flex-col space-y-2 md:space-y-4 overflow-y-auto">
+            <nav className="flex flex-col space-y-2 md:space-y-4 overflow-y-auto w-full">
             {menuItems.map((item) => (
-    <div key={item.name} className="relative">
-        <button
-    onClick={() => {
-        if (item.name === "Listas" && item.subItems) {
-            console.log("Toggling Listas. Estado previo:", selectedOption);
-            setSelectedOption(prev => (prev === item.name ? "" : item.name));
-        } else {
-            console.log("Cambiando vista a:", item.name);
-            setSelectedOption(item.name);
-        }
-    }}
-
-            className={`flex items-center space-x-3 p-2 md:p-3 transition text-base md:text-lg text-white bg-transparent
-                ${selectedOption === item.name ? "font-semibold" : "hover:outline hover:outline-1 hover:outline-gray-700"}`}
-        >
-            {typeof item.icon === "string" ? (
-                <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6 brightness-0 invert" />
-            ) : (
-                <span className="w-5 h-5 md:w-6 md:h-6 text-white">{item.icon}</span>
-            )}
-            <span>{item.name}</span>
-        </button>
-        
-        {/* Subitems con transición suave */}
-        {item.subItems && (
-            <div 
-                className={`pl-8 space-y-2 overflow-hidden transition-all duration-300 ease-in-out 
-                    ${selectedOption === item.name ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}
-            >
-                {item.subItems.map((subItem) => (
+                <div key={item.name} className="relative w-full">
                     <button
-                        key={subItem.name}
-                        onClick={() => setSelectedOption(subItem.name)}
-                        className="flex items-center space-x-3 p-2 md:p-3 transition text-sm text-gray-300 hover:text-white bg-transparent hover:outline hover:outline-1 hover:outline-gray-700"
+                        onClick={() => {
+                            if (item.name === "Listas" && item.subItems) {
+                                // Solo toggle el estado de expansión del menú sin cambiar la pestaña actual
+                                setExpandedMenu(prev => prev === "Listas" ? "" : "Listas");
+                            } else {
+                                console.log("Cambiando vista a:", item.name);
+                                setSelectedOption(item.name);
+                            }
+                        }}
+                        className={`flex items-center space-x-3 p-2 md:p-3 transition text-base md:text-lg text-white bg-transparent w-full rounded-lg
+                            ${selectedOption === item.name 
+                                ? "font-semibold bg-opacity-10 bg-white" 
+                                : "hover:bg-white hover:bg-opacity-5"}`}
                     >
-                        {typeof subItem.icon === "string" ? (
-                            <img src={subItem.icon} alt={subItem.name} className="w-4 h-4 md:w-5 md:h-5 brightness-0 invert" />
+                        {typeof item.icon === "string" ? (
+                            <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6 brightness-0 invert" />
                         ) : (
-                            <span className="w-4 h-4 md:w-5 md:h-5 text-white">{subItem.icon}</span>
+                            <span className="w-5 h-5 md:w-6 md:h-6 text-white">{item.icon}</span>
                         )}
-                        <span>{subItem.name}</span>
+                        <span>{item.name}</span>
                     </button>
-                ))}
-            </div>
-        )}
-    </div>
-))}
+                    
+                    {/* Subitems con transición suave - Ahora controlado por expandedMenu */}
+                    {item.subItems && (
+                        <div 
+                            className={`pl-8 space-y-2 overflow-hidden transition-all duration-300 ease-in-out w-full
+                                ${expandedMenu === item.name ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}
+                        >
+                            {item.subItems.map((subItem) => (
+                                <button
+                                    key={subItem.name}
+                                    onClick={() => setSelectedOption(subItem.name)}
+                                    className={`flex items-center space-x-3 p-2 md:p-3 transition text-sm text-gray-300 hover:text-white 
+                                        bg-transparent w-full rounded-lg
+                                        ${selectedOption === subItem.name 
+                                            ? "font-semibold bg-opacity-10 bg-white" 
+                                            : "hover:bg-white hover:bg-opacity-5"}`}
+                                >
+                                    {typeof subItem.icon === "string" ? (
+                                        <img src={subItem.icon} alt={subItem.name} className="w-4 h-4 md:w-5 md:h-5 brightness-0 invert" />
+                                    ) : (
+                                        <span className="w-4 h-4 md:w-5 md:h-5 text-white">{subItem.icon}</span>
+                                    )}
+                                    <span>{subItem.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            ))}
             </nav>
 
             {/* Sección inferior con imágenes */}
-            <div className="flex flex-col space-y-2 md:space-y-4 mt-4 md:mt-6">
+            <div className="flex flex-col space-y-2 md:space-y-4 mt-4 md:mt-6 w-full">
                 {bottomItems.map((item) => (
                     <button
                         key={item.name}
                         onClick={() => setSelectedOption(item.name)}
-                        className="flex items-center space-x-3 p-2 md:p-3 transition text-sm md:text-base text-white bg-transparent hover:outline hover:outline-1 hover:outline-gray-700 whitespace-nowrap"
+                        className={`flex items-center space-x-3 p-2 md:p-3 transition text-sm md:text-base 
+                            text-white bg-transparent w-full rounded-lg
+                            ${selectedOption === item.name 
+                                ? "font-semibold bg-opacity-10 bg-white" 
+                                : "hover:bg-white hover:bg-opacity-5"}`}
                     >
                         <img src={item.icon} alt={item.name} className="w-5 h-5 md:w-6 md:h-6 brightness-0 invert" />
                         <span>{item.name}</span>

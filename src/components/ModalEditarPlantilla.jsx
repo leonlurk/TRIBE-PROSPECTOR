@@ -303,19 +303,6 @@ const ModalEditarPlantilla = ({
                 <label className="text-gray-600 text-xs md:text-sm font-medium">Cuerpo</label>
                 <div className="border border-gray-300 rounded-lg mt-1">
                     <div className="flex items-center justify-between bg-[#F3F2FC] p-2 rounded-t-lg">
-                        <button 
-                            className="text-gray-600 text-xs font-medium bg-transparent border-none hover:text-gray-800"
-                            disabled={isLoading}
-                            onClick={handlePreview}
-                        >
-                            👀 Vista previa
-                        </button>
-                        <button 
-                            className="text-gray-600 text-xs font-medium bg-transparent border-none hover:text-gray-800"
-                            disabled={isLoading}
-                        >
-                            ➕ Insertar variable
-                        </button>
                     </div>
                     <textarea
                         value={cuerpo}

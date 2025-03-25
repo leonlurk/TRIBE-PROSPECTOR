@@ -11,7 +11,7 @@ const LikesPanel = ({
   usersCount
 }) => {
   return (
-    <div className="flex-1 bg-gray-100 rounded-lg p-4">
+    <div className="w-1/3 flex-1 bg-gray-100 rounded-lg p-4">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-semibold text-black">Dar Likes a Publicaciones</h3>
       </div>
@@ -28,7 +28,7 @@ const LikesPanel = ({
       </div>
       
       <button 
-        className="w-full bg-pink-600 text-white rounded-full py-2 mt-3"
+        className="w-full bg-black text-white rounded-full py-2 mt-3"
         onClick={likeLatestPosts}
         disabled={loading || usersCount === 0}
       >

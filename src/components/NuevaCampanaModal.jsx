@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
 import PropTypes from 'prop-types';
 import { FaArrowRight, FaTimes } from "react-icons/fa";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import logApiRequest from "../requestLogger";
 import { instagramApi } from "../instagramApi"; 
 import { checkBlacklistedUsers } from "../blacklistUtils";
 import { createCampaignOptions, startCampaignMonitoring } from "../campaignIntegration";
 import { createCampaign as createCampaignStore, updateCampaign, ensureUserExists } from '../campaignStore';
+
 
 // Componentes
 import UsersList from './UsersList';
@@ -29,6 +30,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [templates, setTemplates] = useState([]);
   
   // Estados para multimedia
   const [mediaFile, setMediaFile] = useState(null);
@@ -62,6 +64,22 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
   });
   
   // Funciones auxiliares
+  const fetchTemplates = async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const templatesRef = collection(db, "users", user.uid, "templates");
+      const templatesSnapshot = await getDocs(templatesRef);
+      const templatesList = templatesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setTemplates(templatesList);
+    } catch (error) {
+      console.error("Error al cargar plantillas:", error);
+    }
+  };
+
   const updateProgress = (percentage, message = "") => {
     setProgress(percentage);
     if (message) setProgressMessage(message);
@@ -145,6 +163,12 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       setMediaCaption("");
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (user?.uid) {
+      fetchTemplates();
+    }
+  }, [user, fetchTemplates]);
   
   // Manejadores para obtener usuarios
   const getLikesFromPost = async () => {
@@ -396,7 +420,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       
       if (user?.uid) {
         const campaignOptions = createCampaignOptions({
-          type: "follow_users",
+          type: "follow_users",  // Correcto para seguir usuarios
           users: users,
           endpoint: "/seguir_usuarios",
           postLink: targetLink
@@ -948,6 +972,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           users: users,
           endpoint: "/enviar_media",
           mediaType: mediaType,
+          fileName: mediaFile?.name || "archivo.media", // Añadir esto
           postLink: targetLink
         });
         
@@ -1248,26 +1273,25 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white rounded-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex justify-between items-center p-5 border-b">
-          <h2 className="text-xl font-semibold">
+        <div className="flex justify-between items-center p-4 border-b">
+      <h2 className="text-xl font-medium text-black">
             Nueva Campaña - Paso {step} de 4
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 bg-transparent border-0 p-0 m-0"
-          >
-            <FaTimes size={20} />
+            className="text-gray-500 hover:text-gray-700 bg-transparent border-0 p-2 rounded-full hover:bg-gray-100">
+            <FaTimes size={16} />
           </button>
         </div>
         
         {/* Contenido dinámico según el paso */}
-        <div className="p-5">
+        <div className="p-4">
           {/* Mensaje de error */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
-              {error}
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm">
+          {error}
             </div>
           )}
           
@@ -1297,16 +1321,6 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
               </div>
               
               <div className="mb-4">
-                <label className="flex items-center space-x-2">
-                  <input 
-                    type="checkbox"
-                    checked={tasks.enviarMedia}
-                    onChange={(e) => setTasks({...tasks, enviarMedia: e.target.checked})}
-                    className="w-5 h-5"
-                    disabled={loading}
-                  />
-                  <span>Enviar fotos o videos</span>
-                </label>
               </div>
             </div>
           )}
@@ -1317,12 +1331,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
               {/* Objetivos */}
               <div className="mb-6">
                 <div className="flex items-center mb-3">
-                  <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center mr-2">
-                    <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M12 14C13.1046 14 14 13.1046 14 12C14 10.8954 13.1046 10 12 10C10.8954 10 10 10.8954 10 12C10 13.1046 10.8954 14 12 14Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                  <div className="w-8 h-8 bg-transparent rounded-full flex items-center justify-center mr-2">
+                  <img src="/assets/gps.png" alt="Filter" className="w-8 h-8 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-black">Objetivos</h3>
                 </div>
@@ -1363,10 +1373,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
               {/* Filtros */}
               <div className="mb-6">
                 <div className="flex items-center mb-3">
-                  <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center mr-2">
-                    <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M19 9L12 16L5 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                  <div className="w-8 h-8 bg-transparent rounded-full flex items-center justify-center mr-2">
+                  <img src="/assets/filter.png" alt="Filter" className="w-8 h-8 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-black">Filtros</h3>
                 </div>
@@ -1387,17 +1395,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
               {/* Tareas */}
               <div className="mb-6">
                 <div className="flex items-center mb-3">
-                  <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center mr-2">
-                    <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M4 15S3 14 3 12.5 4 10 4 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M20 15S21 14 21 12.5 20 10 20 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M20 4V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M20 19V20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M4 4V5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M4 19V20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M8 4H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <path d="M8 20H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
+                  <div className="w-8 h-8 bg-transparent rounded-full flex items-center justify-center mr-2">
+                  <img src="/assets/flag.png" alt="Flag" className="w-8 h-8 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-black">Tareas</h3>
                 </div>
@@ -1440,62 +1439,81 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
                       onChange={(e) => setTasks({...tasks, comentar: e.target.checked})}
                       className="w-5 h-5"
                     />
-                    <span>Comentar en sus publicaciones</span>
+                    <span>Comentar en sus publicaciones (soon)</span>
                   </label>
                 </div>
               </div>
             </div>
           )}
           
-          {/* Paso 3: Usuarios y acciones */}
-          {step === 3 && (
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Lista de usuarios */}
-              <UsersList 
-                users={users}
-                removeUser={removeUser}
-                filteredUsers={filteredUsers}
-                setShowBlacklist={setShowBlacklist}
-                followAllUsers={tasks.seguir ? followAllUsers : null}
-                loading={loading}
-              />
+          {/* Paso 3: Usuarios y acciones - Modifica para que sea como la segunda captura */}
+      {step === 3 && (
+        <div className="flex gap-0">
+          {/* Lista de usuarios - Fondo blanco en lugar de gris */}
+          <UsersList 
+            users={users}
+            removeUser={removeUser}
+            filteredUsers={filteredUsers}
+            setShowBlacklist={setShowBlacklist}
+            followAllUsers={tasks.seguir ? followAllUsers : null}
+            loading={loading}
+            user={user}
+            db={db}
+          />
               
               {/* Panel de mensajes/comentarios */}
-              {(tasks.enviarMensaje || tasks.comentar) && (
-                <MessagePanel 
-                  type={tasks.enviarMensaje ? "mensaje" : "comentario"}
-                  mensaje={mensaje}
-                  setMensaje={setMensaje}
-                  selectedTemplate={selectedTemplate}
-                  sendAction={tasks.enviarMensaje ? sendMessages : commentOnLatestPosts}
-                  loading={loading}
-                  usersCount={users.length}
-                />
-              )}
+          {(tasks.enviarMensaje || tasks.comentar) && (
+            <MessagePanel 
+              type={tasks.enviarMensaje ? "mensaje" : "comentario"}
+              mensaje={mensaje}
+              setMensaje={setMensaje}
+              selectedTemplate={selectedTemplate}
+              sendAction={tasks.enviarMensaje ? sendMessages : commentOnLatestPosts}
+              loading={loading}
+              usersCount={users.length}
+              templates={templates}
+              onMediaSelect={(file, type) => {
+                setMediaFile(file);
+                setMediaType(type);
+                
+                // Vista previa
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    setMediaPreview(reader.result);
+                  };
+                  reader.readAsDataURL(file);
+                }
+                
+                // Activar opción de media
+                setTasks(prev => ({...prev, enviarMedia: true}));
+              }}
+            />
+          )}
               
               {/* Panel de medios */}
-              {tasks.enviarMedia && (
-                <MediaPanel 
-                  mediaFile={mediaFile}
-                  mediaPreview={mediaPreview}
-                  mediaType={mediaType}
-                  mediaCaption={mediaCaption}
-                  handleFileSelect={handleFileSelect}
-                  setMediaCaption={setMediaCaption}
-                  sendMedia={sendMedia}
-                  loading={loading}
-                  usersCount={users.length}
-                />
-              )}
+          {tasks.enviarMedia && (
+            <MediaPanel 
+              mediaFile={mediaFile}
+              mediaPreview={mediaPreview}
+              mediaType={mediaType}
+              mediaCaption={mediaCaption}
+              handleFileSelect={handleFileSelect}
+              setMediaCaption={setMediaCaption}
+              sendMedia={sendMedia}
+              loading={loading}
+              usersCount={users.length}
+            />
+          )}
               
               {/* Panel de likes */}
-              {tasks.darLikes && (
-                <LikesPanel 
-                  likeLatestPosts={likeLatestPosts}
-                  loading={loading}
-                  usersCount={users.length}
-                />
-              )}
+          {tasks.darLikes && (
+            <LikesPanel 
+              likeLatestPosts={likeLatestPosts}
+              loading={loading}
+              usersCount={users.length}
+            />
+          )}
             </div>
           )}
           
@@ -1509,7 +1527,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
               </div>
               <h3 className="text-2xl font-semibold mb-2">¡Campaña creada con éxito!</h3>
               <p className="text-gray-600 mb-4">
-                Tu campaña "{campaignName}" ha sido creada y está en proceso.
+                Tu campaña &ldquo;{campaignName}&rdquo; ha sido creada y está en proceso.
                 Puedes seguir su progreso en la sección de Campañas.
               </p>
               <button 
@@ -1523,37 +1541,37 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         </div>
         
         {/* Footer con botones de navegación */}
-        {step < 4 && (
-          <div className="p-5 border-t flex justify-end">
-            {step > 1 && (
-              <button 
-                onClick={() => setStep(step - 1)}
-                className="px-6 py-2 border rounded-lg mr-2 hover:bg-gray-100"
-              >
-                Atrás
-              </button>
-            )}
-            <button 
-              onClick={handleNext}
-              className="px-8 py-3 bg-black text-white rounded-lg flex items-center"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Procesando...
-                </>
-              ) : (
-                <>
-                  Siguiente <FaArrowRight className="ml-2" />
-                </>
-              )}
-            </button>
-          </div>
+    {step < 4 && (
+      <div className="p-4 border-t flex justify-end space-x-2">
+        {step > 1 && (
+          <button 
+            onClick={() => setStep(step - 1)}
+            className="px-6 py-2 bg-gray-200 text-black rounded-lg hover:bg-gray-300"
+          >
+            Atrás
+          </button>
         )}
+        <button 
+          onClick={handleNext}
+          className="px-8 py-2 bg-indigo-900 text-white rounded-lg flex items-center justify-center"
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Procesando...
+            </>
+          ) : (
+            <>
+              Siguiente <FaArrowRight className="ml-2" />
+            </>
+          )}
+        </button>
+      </div>
+    )}
       </div>
       
       {/* Modales y overlays */}

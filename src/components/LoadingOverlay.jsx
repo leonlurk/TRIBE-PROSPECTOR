@@ -11,7 +11,7 @@ const LoadingOverlay = ({
 }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex flex-col justify-center items-center">
-      <div className="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+      <div className="bg-white p-6 rounded-2xl max-w-md w-full mx-4">
         <div className="mb-4">
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div 
@@ -25,7 +25,7 @@ const LoadingOverlay = ({
           </div>
         </div>
         
-        <p className="text-center font-medium">
+        <p className="text-center font-medium text-gray-800">
           {message || "Procesando operación..."}
         </p>
         

@@ -133,15 +133,34 @@ export const instagramApi = {
     });
   },
   
-  sendMedia: (users, file, mediaType, message = "", skipExisting = false) => {
+  sendMedia: async (users, file, mediaType, message = "", skipExisting = false) => {
     const usersStr = Array.isArray(users) ? users.join(",") : users;
-    return apiRequest("/enviar_media", {
-      usuarios: usersStr,
-      file,
-      media_type: mediaType,
-      mensaje: message,
-      skip_existing: skipExisting
-    });
+    
+    // Usar FormData para archivos
+    const formData = new FormData();
+    formData.append("usuarios", usersStr);
+    formData.append("file", file);
+    formData.append("media_type", mediaType);
+    formData.append("mensaje", message);
+    formData.append("skip_existing", skipExisting);
+    
+    // Petición especial para FormData
+    try {
+      const response = await fetch(`${API_BASE_URL}/enviar_media`, {
+        method: "POST",
+        headers: getCommonHeaders(),
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error(`Error en envío de media:`, error);
+      throw error;
+    }
   },
   
   // Estadísticas y gestión

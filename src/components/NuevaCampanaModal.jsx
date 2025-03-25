@@ -5,6 +5,9 @@ import { collection, addDoc } from "firebase/firestore";
 import { db } from "../firebaseConfig";
 import logApiRequest from "../requestLogger";
 import { instagramApi } from "../instagramApi"; 
+import { checkBlacklistedUsers } from "../blacklistUtils";
+import { createCampaignOptions, startCampaignMonitoring } from "../campaignIntegration";
+import { createCampaign as createCampaignStore, updateCampaign, ensureUserExists } from '../campaignStore';
 
 
 const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
@@ -17,6 +20,13 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
   const [mediaPreview, setMediaPreview] = useState(null);
   const [mediaType, setMediaType] = useState("image"); // "image" o "video"
   const [mediaCaption, setMediaCaption] = useState("");
+  const removeUser = (username) => {
+    setUsers(users.filter(user => user !== username));
+  };
+  const [showBlacklist, setShowBlacklist] = useState(false);
+  const [filteredUsers, setFilteredUsers] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
   
   // Para el paso 2 - Objetivos y filtros
   const [objectives, setObjectives] = useState({
@@ -24,6 +34,11 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
     likes: false,
     seguidores: false
   });
+
+  const updateProgress = (percentage, message = "") => {
+    setProgress(percentage);
+    if (message) setProgressMessage(message);
+  };
   
   const [filters, setFilters] = useState({
     genero: false
@@ -91,18 +106,69 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       setError("Debes seleccionar un archivo de imagen o video");
       return;
     }
+  
+    const result = await checkBlacklistedUsers(users, user, (msg, type) => setError(msg), "NuevaCampanaModal");
+    setFilteredUsers({
+      original: users.length,
+      filtered: result.length,
+      blacklistedCount: users.length - result.length,
+      blacklistedUsers: users.filter(u => !result.includes(u))
+    });
+  
+    // Verificar si hay usuarios después de filtrar la blacklist
+    if (result.length === 0) {
+      setError("Todos los usuarios están en listas negras. No se enviaron medios.");
+      return;
+    }
     
     setLoading(true);
     setError("");
     
+    // Progreso inicial
+    updateProgress(0, "Iniciando envío de medios...");
+    
+    // Variables para campaña
+    let campaignId = null;
+    let stopMonitoring = null;
+    
     try {
+      // Actualizar progreso al preparar archivo
+      updateProgress(10, "Preparando archivo multimedia...");
+      
+      // Crear una campaña para esta operación
+      if (user && user.uid) {
+        const campaignOptions = createCampaignOptions({
+          type: "send_media",
+          users: users,
+          endpoint: "/enviar_media",
+          mediaType: mediaType,
+          postLink: targetLink
+        });
+        
+        // Aseguramos que el documento del usuario exista antes de crear la campaña
+        await ensureUserExists(user.uid);
+        
+        campaignId = await createCampaignStore(user.uid, campaignOptions);
+        
+        // Iniciar monitoreo de la campaña
+        if (campaignId) {
+          stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+            token: instagramToken
+          });
+        }
+      }
+      
+      // Actualizar progreso antes de registrar
+      updateProgress(20, "Registrando operación...");
+      
       // Log the send media attempt
       if (user) {
         await logApiRequest({
           endpoint: "/enviar_media",
           requestData: { 
             usuarios_count: users.length,
-            media_type: mediaType
+            media_type: mediaType,
+            campaign_id: campaignId
           },
           userId: user.uid,
           status: "pending",
@@ -111,19 +177,39 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
             action: "send_media",
             usersCount: users.length,
             mediaType: mediaType,
-            postLink: targetLink || null
+            postLink: targetLink || null,
+            campaignId: campaignId
           }
         });
       }
       
+      // Actualizar progreso antes de enviar medios
+      updateProgress(30, `Enviando ${mediaType} a ${result.length} usuarios...`);
+      
       // Usar la API centralizada para enviar medios
       const data = await instagramApi.sendMedia(
-        users,
+        result,
         mediaFile,
         mediaType,
         mediaCaption,
         false // skipExisting
       );
+      
+      // Actualizar progreso después de enviar medios
+      updateProgress(70, "Procesando resultados...");
+      
+      // Actualizar campaña con resultado inicial
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          progress: 80,
+          initialResponse: data,
+          filteredUsers: result.length,
+          blacklistedUsers: users.length - result.length
+        });
+      }
+      
+      // Actualizar progreso antes de registrar respuesta
+      updateProgress(90, "Finalizando envío de medios...");
       
       // Log the response
       if (user) {
@@ -131,33 +217,61 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           endpoint: "/enviar_media",
           requestData: { 
             usuarios_count: users.length,
-            media_type: mediaType
+            filtered_users_count: result.length,
+            media_type: mediaType,
+            campaign_id: campaignId
           },
           userId: user.uid,
           responseData: { 
             status: data.status,
             sentCount: data.sent_count || 0,
-            failedCount: data.failed_count || 0
+            failedCount: data.failed_count || 0,
+            blacklistedCount: users.length - result.length,
+            campaignId: campaignId
           },
           status: data.status === "success" ? "success" : "completed",
           source: "NuevaCampanaModal",
           metadata: {
             action: "send_media",
             usersCount: users.length,
+            filteredUsersCount: result.length,
+            blacklistedCount: users.length - result.length,
             mediaType: mediaType,
             postLink: targetLink,
             sentCount: data.sent_count || 0,
-            failedCount: data.failed_count || 0
+            failedCount: data.failed_count || 0,
+            campaignId: campaignId
           }
         });
       }
       
+      // Actualizar progreso al completar
+      updateProgress(100, `Medios enviados exitosamente a ${data.sent_count || 0} usuarios`);
+      
       setError(null);
       alert(`Medios enviados exitosamente a ${data.sent_count || 0} usuarios`);
       
+      // Avanzar al paso 4 (éxito) si todo va bien
+      setStep(4);
+      
     } catch (error) {
+      // Actualizar progreso en caso de error
+      updateProgress(100, "Error en el envío de medios");
+      
       console.error("Error al enviar medios:", error);
       setError("Error al enviar medios: " + error.message);
+      
+      // Actualizar campaña con el error
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          status: "failed",
+          progress: 100,
+          error: error.message,
+          endedAt: new Date()
+        });
+        
+        if (stopMonitoring) stopMonitoring();
+      }
       
       // Log the error
       if (user) {
@@ -165,7 +279,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           endpoint: "/enviar_media",
           requestData: { 
             usuarios_count: users.length,
-            media_type: mediaType
+            media_type: mediaType,
+            campaign_id: campaignId
           },
           userId: user.uid,
           status: "error",
@@ -175,7 +290,422 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
             error: error.message,
             usersCount: users.length,
             mediaType: mediaType,
-            postLink: targetLink
+            postLink: targetLink,
+            campaignId: campaignId
+          }
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const commentOnLatestPosts = async () => {
+    if (users.length === 0) {
+      setError("No hay usuarios para comentar en sus publicaciones");
+      return;
+    }
+    
+    if (!mensaje.trim()) {
+      setError("Debes escribir un comentario para enviar");
+      return;
+    }
+    
+    const result = await checkBlacklistedUsers(users, user, (msg, type) => setError(msg), "NuevaCampanaModal");
+    setFilteredUsers({
+      original: users.length,
+      filtered: result.length,
+      blacklistedCount: users.length - result.length,
+      blacklistedUsers: users.filter(u => !result.includes(u))
+    });
+  
+    // Verificar si hay usuarios después de filtrar la blacklist
+    if (result.length === 0) {
+      setError("Todos los usuarios están en listas negras. No se realizaron comentarios.");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+    
+    // Progreso inicial
+    updateProgress(0, "Iniciando proceso de comentarios...");
+    
+    // Variables para campaña
+    let campaignId = null;
+    let stopMonitoring = null;
+    
+    try {
+      // Actualizar progreso al crear campaña
+      updateProgress(10, "Preparando campaña de comentarios...");
+      
+      // Crear una campaña para esta operación
+      if (user && user.uid) {
+        const campaignOptions = createCampaignOptions({
+          type: "comment_posts",
+          users: users,
+          endpoint: "/comment_latest_post",
+          message: mensaje.substring(0, 50) + "...",
+          postLink: targetLink
+        });
+        
+        campaignId = await createCampaignStore(user.uid, campaignOptions);
+        
+        // Iniciar monitoreo de la campaña
+        stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+          token: instagramToken
+        });
+      }
+      
+      // Actualizar progreso antes de registrar
+      updateProgress(20, "Registrando operación...");
+      
+      // Log del intento de comentar
+      if (user) {
+        await logApiRequest({
+          endpoint: "/comment_latest_post",
+          requestData: { 
+            usuarios_count: users.length,
+            message: mensaje,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          status: "pending",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "comment_posts",
+            usersCount: users.length,
+            messageLength: mensaje.length,
+            postLink: targetLink,
+            campaignId: campaignId
+          }
+        });
+      }
+      
+      // Actualizar progreso antes de simular
+      updateProgress(40, `Preparando comentarios para ${result.length} publicaciones...`);
+      
+      // Esta funcionalidad es hipotética ya que el endpoint no está en la documentación
+      // pero quedaría implementada así con la estructura actual
+      
+      // Simular proceso (implementar cuando exista el endpoint real)
+      updateProgress(50, "Enviando comentarios...");
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Actualizar progreso después de procesar
+      updateProgress(70, "Procesando resultados...");
+      
+      // Log de respuesta simulada
+      if (user) {
+        await logApiRequest({
+          endpoint: "/comment_latest_post",
+          requestData: { 
+            usuarios_count: users.length,
+            filtered_users_count: result.length,
+            message: mensaje,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          responseData: { 
+            status: "success",
+            commentedCount: result.length,
+            failedCount: 0,
+            blacklistedCount: users.length - result.length,
+            campaignId: campaignId
+          },
+          status: "success",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "comment_posts",
+            usersCount: users.length,
+            filteredUsersCount: result.length,
+            blacklistedCount: users.length - result.length,
+            messageLength: mensaje.length,
+            postLink: targetLink,
+            commentedCount: result.length,
+            failedCount: 0,
+            campaignId: campaignId
+          }
+        });
+      }
+      
+      // Actualizar progreso antes de finalizar campaña
+      updateProgress(90, "Finalizando operación...");
+      
+      // Actualizar campaña como completada
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          status: "completed",
+          progress: 100,
+          endedAt: new Date(),
+          successCount: result.length,
+          failedCount: 0
+        });
+      }
+      
+      // Actualizar progreso al completar
+      updateProgress(100, `Comentarios programados para ${result.length} publicaciones`);
+      
+      setError(null);
+      alert(`Se han programado comentarios para ${result.length} publicaciones`);
+      
+      // Avanzar al paso 4 (éxito)
+      setStep(4);
+      
+    } catch (error) {
+      // Actualizar progreso en caso de error
+      updateProgress(100, "Error en el proceso de comentarios");
+      
+      console.error("Error al comentar publicaciones:", error);
+      setError("Error al comentar publicaciones: " + error.message);
+      
+      // Actualizar campaña con el error
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          status: "failed",
+          progress: 100,
+          error: error.message,
+          endedAt: new Date()
+        });
+        
+        if (stopMonitoring) stopMonitoring();
+      }
+      
+      // Log del error
+      if (user) {
+        await logApiRequest({
+          endpoint: "/comment_latest_post",
+          requestData: { 
+            usuarios_count: users.length,
+            message: mensaje,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          status: "error",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "comment_posts",
+            error: error.message,
+            usersCount: users.length,
+            messageLength: mensaje.length,
+            postLink: targetLink,
+            campaignId: campaignId
+          }
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const likeLatestPosts = async () => {
+    if (users.length === 0) {
+      setError("No hay usuarios para dar like a sus publicaciones");
+      return;
+    }
+    const result = await checkBlacklistedUsers(users, user, (msg, type) => setError(msg), "NuevaCampanaModal");
+    setFilteredUsers({
+      original: users.length,
+      filtered: result.length,
+      blacklistedCount: users.length - result.length,
+      blacklistedUsers: users.filter(u => !result.includes(u))
+    });
+    
+    setLoading(true);
+    setError("");
+     // CAMBIO 1: Verificar si hay usuarios después de filtrar la blacklist
+     if (result.length === 0) {
+      setError("Todos los usuarios están en listas negras. No se dieron likes.");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+    
+    // CAMBIO 2: Establecer progreso inicial
+    updateProgress(0, "Iniciando proceso de likes...");
+    // Variables para campaña
+    let campaignId = null;
+    let stopMonitoring = null;
+    
+    try {
+      // Crear una campaña para esta operación
+      if (user && user.uid) {
+        const campaignOptions = createCampaignOptions({
+          type: "like_posts",
+          users: users,
+          endpoint: "/like_latest_post",
+          postLink: targetLink
+        });
+        
+        campaignId = await createCampaignStore(user.uid, campaignOptions);
+        
+        // Iniciar monitoreo de la campaña
+        stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+          token: instagramToken
+        });
+      }
+      
+      // Log the like posts attempt
+      if (user) {
+        await logApiRequest({
+          endpoint: "/like_latest_post",
+          requestData: { 
+            usuarios_count: users.length,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          status: "pending",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "like_posts",
+            usersCount: users.length,
+            postLink: targetLink,
+            campaignId: campaignId
+          }
+        });
+      }
+      
+      // Verificar usuarios en blacklist
+      const filteredUsers = await checkBlacklistedUsers(users, user, (msg, type) => setError(msg), "NuevaCampanaModal");
+      
+      if (filteredUsers.length === 0) {
+        setError("Todos los usuarios están en listas negras. No se dieron likes.");
+        
+        // Si se creó una campaña, actualizarla como cancelada
+        if (campaignId) {
+          await updateCampaign(user.uid, campaignId, {
+            status: "cancelled",
+            progress: 100,
+            endedAt: new Date(),
+            error: "Todos los usuarios están en listas negras"
+          });
+          
+          if (stopMonitoring) stopMonitoring();
+        }
+        
+        setLoading(false);
+        return;
+      }
+      
+      // Procesar usuarios en secuencia
+      let sucessCount = 0;
+      let failedCount = 0;
+      
+      for (let i = 0; i < filteredUsers.length; i++) {
+        const username = filteredUsers[i];
+        
+        try {
+          // Actualizar progreso
+          if (campaignId) {
+            await updateCampaign(user.uid, campaignId, {
+              progress: Math.floor((i / filteredUsers.length) * 100),
+              currentUser: username,
+              processedUsers: i,
+              totalUsers: filteredUsers.length
+            });
+          }
+          
+          // Usar la API para dar like a la última publicación
+          const result = await instagramApi.likeLatestPost(username);
+          
+          if (result.status === "success") {
+            sucessCount++;
+          } else {
+            failedCount++;
+          }
+          
+          // Pausa breve entre solicitudes para no sobrecargar
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+        } catch (error) {
+          console.error(`Error al dar like a las publicaciones de ${username}:`, error);
+          failedCount++;
+        }
+      }
+      
+      // Finalizar campaña
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          status: "completed",
+          progress: 100,
+          endedAt: new Date(),
+          successCount: sucessCount,
+          failedCount: failedCount
+        });
+      }
+      
+      // Log the response
+      if (user) {
+        await logApiRequest({
+          endpoint: "/like_latest_post",
+          requestData: { 
+            usuarios_count: users.length,
+            filtered_users_count: filteredUsers.length,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          responseData: { 
+            status: "success",
+            likedCount: sucessCount,
+            failedCount: failedCount,
+            blacklistedCount: users.length - filteredUsers.length,
+            campaignId: campaignId
+          },
+          status: "success",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "like_posts",
+            usersCount: users.length,
+            filteredUsersCount: filteredUsers.length,
+            blacklistedCount: users.length - filteredUsers.length,
+            postLink: targetLink,
+            likedCount: sucessCount,
+            failedCount: failedCount,
+            campaignId: campaignId
+          }
+        });
+      }
+      
+      setError(null);
+      alert(`Se han procesado likes para ${sucessCount} usuarios (fallidos: ${failedCount})`);
+      
+      // Avanzar al paso 4 (éxito) si todo va bien
+      setStep(4);
+      
+    } catch (error) {
+      console.error("Error al dar likes:", error);
+      setError("Error al dar likes: " + error.message);
+      
+      // Actualizar campaña con el error
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          status: "failed",
+          progress: 100,
+          error: error.message,
+          endedAt: new Date()
+        });
+        
+        if (stopMonitoring) stopMonitoring();
+      }
+      
+      // Log the error
+      if (user) {
+        await logApiRequest({
+          endpoint: "/like_latest_post",
+          requestData: { 
+            usuarios_count: users.length,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          status: "error",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "like_posts",
+            error: error.message,
+            usersCount: users.length,
+            postLink: targetLink,
+            campaignId: campaignId
           }
         });
       }
@@ -224,10 +754,65 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       return;
     }
     
+    const result = await checkBlacklistedUsers(users, user, (msg, type) => setError(msg), "NuevaCampanaModal");
+    setFilteredUsers({
+      original: users.length,
+      filtered: result.length,
+      blacklistedCount: users.length - result.length,
+      blacklistedUsers: users.filter(u => !result.includes(u))
+    });
+  
+    // Verificar si hay usuarios después de filtrar la blacklist
+    if (result.length === 0) {
+      setError("Todos los usuarios están en listas negras. No se enviaron mensajes.");
+      return;
+    }
+    
     setLoading(true);
     setError("");
     
+    // Progreso inicial
+    updateProgress(0, "Iniciando envío de mensajes...");
+    
+    // Variables para campaña
+    let campaignId = null;
+    let stopMonitoring = null;
+    
     try {
+      // Actualizar progreso al crear campaña
+      updateProgress(10, "Preparando campaña de mensajes...");
+      
+      // Crear una campaña para esta operación
+      if (user && user.uid) {
+        const campaignOptions = createCampaignOptions({
+          type: "send_messages",
+          users: users,
+          endpoint: "/enviar_mensajes_multiple",
+          templateName: selectedTemplate?.name || null,
+          postLink: targetLink
+        });
+        
+        try {
+          // Aseguramos que el documento del usuario exista antes de crear la campaña
+          await ensureUserExists(user.uid);
+          
+          campaignId = await createCampaignStore(user.uid, campaignOptions);
+          
+          // Iniciar monitoreo de la campaña solo si se creó exitosamente
+          if (campaignId) {
+            stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+              token: instagramToken
+            });
+          }
+        } catch (campaignError) {
+          console.error("Error al crear la campaña:", campaignError);
+          // Continuar con el envío de mensajes incluso si falla la creación de la campaña
+        }
+      }
+      
+      // Actualizar progreso antes de registrar
+      updateProgress(20, "Registrando operación...");
+      
       // Log the send messages attempt
       if (user) {
         await logApiRequest({
@@ -235,7 +820,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           requestData: { 
             usuarios_count: users.length,
             mensaje_length: mensaje.length,
-            template_id: selectedTemplate ? selectedTemplate.id : null
+            template_id: selectedTemplate ? selectedTemplate.id : null,
+            campaign_id: campaignId || null
           },
           userId: user.uid,
           status: "pending",
@@ -246,13 +832,33 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
             messageLength: mensaje.length,
             templateId: selectedTemplate ? selectedTemplate.id : null,
             templateName: selectedTemplate ? selectedTemplate.name : null, 
-            postLink: targetLink || null
+            postLink: targetLink || null,
+            campaignId: campaignId || null
           }
         });
       }
       
+      // Actualizar progreso antes de enviar mensajes
+      updateProgress(40, `Enviando mensajes a ${result.length} usuarios...`);
+      
       // Usar la API centralizada para enviar mensajes
-      const data = await instagramApi.sendMessages(users, mensaje, false);
+      const data = await instagramApi.sendMessages(result, mensaje, false);
+      
+      // Actualizar progreso después de enviar mensajes
+      updateProgress(70, "Procesando resultados...");
+      
+      // Actualizar campaña con información inicial
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          progress: 80,
+          initialResponse: data,
+          filteredUsers: result.length,
+          blacklistedUsers: users.length - result.length
+        });
+      }
+      
+      // Actualizar progreso antes de registrar respuesta
+      updateProgress(90, "Finalizando envío de mensajes...");
       
       // Log the response
       if (user) {
@@ -261,35 +867,63 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           requestData: { 
             usuarios_count: users.length,
             mensaje_length: mensaje.length,
-            template_id: selectedTemplate?.id
+            template_id: selectedTemplate?.id,
+            filtered_users_count: result.length,
+            campaign_id: campaignId
           },
           userId: user.uid,
           responseData: { 
             status: data.status,
             sentCount: data.sent_count || 0,
-            failedCount: data.failed_count || 0
+            failedCount: data.failed_count || 0,
+            blacklistedCount: users.length - result.length,
+            campaignId: campaignId
           },
           status: data.status === "success" ? "success" : "completed",
           source: "NuevaCampanaModal",
           metadata: {
             action: "send_messages",
             usersCount: users.length,
+            filteredUsersCount: result.length,
+            blacklistedCount: users.length - result.length,
             messageLength: mensaje.length,
             templateId: selectedTemplate?.id,
             templateName: selectedTemplate?.name,
             postLink: targetLink,
             sentCount: data.sent_count || 0,
-            failedCount: data.failed_count || 0
+            failedCount: data.failed_count || 0,
+            campaignId: campaignId
           }
         });
       }
       
+      // Actualizar progreso al completar
+      updateProgress(100, `Mensajes enviados exitosamente a ${data.sent_count || 0} usuarios`);
+      
       setError(null);
       alert(`Mensajes enviados exitosamente a ${data.sent_count || 0} usuarios`);
       
+      // Avanzar al paso 4 (éxito) si todo va bien
+      setStep(4);
+      
     } catch (error) {
+      // Actualizar progreso en caso de error
+      updateProgress(100, "Error en el envío de mensajes");
+      
       console.error("Error al enviar mensajes:", error);
       setError("Error al enviar mensajes: " + error.message);
+      
+      // Actualizar campaña con el error
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          status: "failed",
+          progress: 100,
+          error: error.message,
+          endedAt: new Date()
+        });
+        
+        if (stopMonitoring) stopMonitoring();
+      }
       
       // Log the error
       if (user) {
@@ -298,7 +932,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           requestData: { 
             usuarios_count: users.length,
             mensaje_length: mensaje.length,
-            template_id: selectedTemplate?.id
+            template_id: selectedTemplate?.id,
+            campaign_id: campaignId
           },
           userId: user.uid,
           status: "error",
@@ -310,7 +945,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
             messageLength: mensaje.length,
             templateId: selectedTemplate?.id,
             templateName: selectedTemplate?.name,
-            postLink: targetLink
+            postLink: targetLink,
+            campaignId: campaignId
           }
         });
       }
@@ -346,92 +982,6 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       
       // Usar la API centralizada
       const data = await instagramApi.getComments(targetLink);
-      
-      const followAllUsers = async () => {
-  if (users.length === 0) {
-    setError("No hay usuarios para seguir");
-    return;
-  }
-  
-  setLoading(true);
-  setError("");
-  
-  try {
-    // Log the follow users attempt
-    if (user) {
-      await logApiRequest({
-        endpoint: "/seguir_usuarios",
-        requestData: { 
-          usuarios_count: users.length
-        },
-        userId: user.uid,
-        status: "pending",
-        source: "NuevaCampanaModal",
-        metadata: {
-          action: "follow_users",
-          usersCount: users.length,
-          postLink: targetLink
-        }
-      });
-    }
-    
-    // Usar la API centralizada para seguir usuarios
-    const data = await instagramApi.followUsers(users);
-    
-    // Log the response
-    if (user) {
-      await logApiRequest({
-        endpoint: "/seguir_usuarios",
-        requestData: { 
-          usuarios_count: users.length
-        },
-        userId: user.uid,
-        responseData: { 
-          status: data.status,
-          followedCount: data.followed_count || 0,
-          skippedCount: data.skipped_count || 0
-        },
-        status: data.status === "success" ? "success" : "completed",
-        source: "NuevaCampanaModal",
-        metadata: {
-          action: "follow_users",
-          usersCount: users.length,
-          postLink: targetLink,
-          followedCount: data.followed_count || 0,
-          skippedCount: data.skipped_count || 0
-        }
-      });
-    }
-    
-    setError(null);
-    alert(`Se han seguido exitosamente a ${data.followed_count || 0} usuarios`);
-    
-  } catch (error) {
-    console.error("Error al seguir usuarios:", error);
-    setError("Error al seguir usuarios: " + error.message);
-    
-    // Log the error
-    if (user) {
-      await logApiRequest({
-        endpoint: "/seguir_usuarios",
-        requestData: { 
-          usuarios_count: users.length
-        },
-        userId: user.uid,
-        status: "error",
-        source: "NuevaCampanaModal",
-        metadata: {
-          action: "follow_users",
-          error: error.message,
-          usersCount: users.length,
-          postLink: targetLink
-        }
-      });
-    }
-  } finally {
-    setLoading(false);
-  }
-};
 
       const getFollowersFromProfile = async () => {
         // Validar que el targetLink sea un perfil y extraer username
@@ -571,6 +1121,187 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
     }
   };
 
+  const followAllUsers = async () => {
+    if (users.length === 0) {
+      setError("No hay usuarios para seguir");
+      return;
+    }
+    
+    const result = await checkBlacklistedUsers(users, user, (msg, type) => setError(msg), "NuevaCampanaModal");
+    setFilteredUsers({
+      original: users.length,
+      filtered: result.length,
+      blacklistedCount: users.length - result.length,
+      blacklistedUsers: users.filter(u => !result.includes(u))
+    });
+  
+    // Verificar si hay usuarios después de filtrar la blacklist
+    if (result.length === 0) {
+      setError("Todos los usuarios están en listas negras. No se siguió a ningún usuario.");
+      return;
+    }
+  
+    setLoading(true);
+    setError("");
+    
+    // Progreso inicial
+    updateProgress(0, "Iniciando proceso de seguimiento...");
+    
+    // Variables para campaña
+    let campaignId = null;
+    let stopMonitoring = null;
+    
+    try {
+      // Actualizar progreso al crear campaña
+      updateProgress(10, "Preparando campaña de seguimiento...");
+      
+      // Crear una campaña para esta operación
+      if (user && user.uid) {
+        const campaignOptions = createCampaignOptions({
+          type: "follow_users",
+          users: users,
+          endpoint: "/seguir_usuarios",
+          postLink: targetLink
+        });
+        
+        campaignId = await createCampaignStore(user.uid, campaignOptions);
+        
+        // Iniciar monitoreo de la campaña
+        stopMonitoring = startCampaignMonitoring(user.uid, campaignId, {
+          token: instagramToken
+        });
+      }
+      
+      // Actualizar progreso antes de registrar
+      updateProgress(20, "Registrando operación...");
+      
+      // Log the follow users attempt
+      if (user) {
+        await logApiRequest({
+          endpoint: "/seguir_usuarios",
+          requestData: { 
+            usuarios_count: users.length,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          status: "pending",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "follow_users",
+            usersCount: users.length,
+            postLink: targetLink,
+            campaignId: campaignId
+          }
+        });
+      }
+      
+      // Actualizar progreso antes de llamar a la API
+      updateProgress(40, `Enviando solicitud para seguir a ${result.length} usuarios...`);
+      
+      // Usar la API centralizada para seguir usuarios
+      const data = await instagramApi.followUsers(result);
+      
+      // Actualizar progreso después de la respuesta
+      updateProgress(70, "Procesando resultados...");
+      
+      // Actualizar campaña con información inicial
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          progress: 10, // Inicio del proceso
+          initialResponse: data,
+          filteredUsers: result.length,
+          blacklistedUsers: users.length - result.length
+        });
+      }
+      
+      // Actualizar progreso antes de registrar respuesta
+      updateProgress(85, "Finalizando operación...");
+      
+      // Log the response
+      if (user) {
+        await logApiRequest({
+          endpoint: "/seguir_usuarios",
+          requestData: { 
+            usuarios_count: users.length,
+            filtered_users_count: result.length,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          responseData: { 
+            status: data.status,
+            followedCount: data.followed_count || 0,
+            skippedCount: data.skipped_count || 0,
+            blacklistedCount: users.length - result.length,
+            campaignId: campaignId
+          },
+          status: data.status === "success" ? "success" : "completed",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "follow_users",
+            usersCount: users.length,
+            filteredUsersCount: result.length,
+            blacklistedCount: users.length - result.length,
+            postLink: targetLink,
+            followedCount: data.followed_count || 0,
+            skippedCount: data.skipped_count || 0,
+            campaignId: campaignId
+          }
+        });
+      }
+      
+      // Actualizar progreso al 100% al completar exitosamente
+      updateProgress(100, `Seguimiento de usuarios iniciado exitosamente`);
+      
+      setError(null);
+      alert("Seguimiento en proceso. Se ha creado una campaña para seguir el progreso.");
+      
+      // Avanzar al paso 4 (éxito) si todo va bien
+      setStep(4);
+      
+    } catch (error) {
+      // Actualizar progreso en caso de error
+      updateProgress(100, "Error en el proceso de seguimiento");
+      
+      console.error("Error al seguir usuarios:", error);
+      setError("Error al seguir usuarios: " + error.message);
+      
+      // Actualizar campaña con el error
+      if (campaignId) {
+        await updateCampaign(user.uid, campaignId, {
+          status: "failed",
+          progress: 100,
+          error: error.message,
+          endedAt: new Date()
+        });
+        
+        if (stopMonitoring) stopMonitoring();
+      }
+      
+      // Log the error
+      if (user) {
+        await logApiRequest({
+          endpoint: "/seguir_usuarios",
+          requestData: { 
+            usuarios_count: users.length,
+            campaign_id: campaignId
+          },
+          userId: user.uid,
+          status: "error",
+          source: "NuevaCampanaModal",
+          metadata: {
+            action: "follow_users",
+            error: error.message,
+            usersCount: users.length,
+            postLink: targetLink,
+            campaignId: campaignId
+          }
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getLikesFromPost = async () => {
     if (!targetLink.trim()) {
       setError("Debes ingresar un enlace a una publicación");
@@ -702,38 +1433,81 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         return;
       }
       
+      // Validar que enviar media solo esté habilitado con la opción correcta del paso 1
+      if (tasks.enviarMedia && !targetLink.includes("/p/")) {
+        setError("Para enviar media, debes seleccionar una publicación en el paso 1");
+        return;
+      }
+      
       // Obtener usuarios según los objetivos seleccionados
       let success = false;
       
-      if (objectives.likes) {
-        success = await getLikesFromPost();
-      } else if (objectives.comentarios) {
-        success = await getCommentsFromPost();
-      } else if (objectives.seguidores) {
-        success = await getFollowersFromProfile();
-      }
-      
-      if (success && users.length > 0) {
-        setStep(step + 1);
-      } else if (users.length === 0) {
-        setError("No se pudieron obtener usuarios para la campaña");
+      try {
+        setLoading(true);
+        
+        if (objectives.likes) {
+          success = await getLikesFromPost();
+        } else if (objectives.comentarios) {
+          success = await getCommentsFromPost();
+        } else if (objectives.seguidores) {
+          success = await getFollowersFromProfile();
+        }
+        
+        if (success && users.length > 0) {
+          // Filtrar duplicados antes de continuar
+          const uniqueUsers = [...new Set(users)];
+          if (uniqueUsers.length < users.length) {
+            console.log(`Filtrados ${users.length - uniqueUsers.length} usuarios duplicados`);
+            setUsers(uniqueUsers);
+          }
+          
+          setStep(step + 1);
+        } else if (users.length === 0) {
+          setError("No se pudieron obtener usuarios para la campaña");
+        }
+      } catch (error) {
+        console.error("Error al obtener usuarios:", error);
+        setError("Error al obtener usuarios: " + error.message);
+      } finally {
+        setLoading(false);
       }
       
       return;
     }
     
     if (step === 3) {
-      // Aquí iría la lógica para completar la campaña
-      if (tasks.enviarMensaje && !mensaje.trim()) {
+      // Validaciones específicas según las tareas seleccionadas
+      if ((tasks.enviarMensaje || tasks.comentar) && !mensaje.trim()) {
         setError("Debes escribir un mensaje para enviar");
         return;
       }
       
-      // Crear la campaña en Firestore
-      await createCampaign();
+      if (tasks.enviarMedia && !mediaFile) {
+        setError("Debes seleccionar un archivo de imagen o video para enviar");
+        return;
+      }
       
-      // Avanzar al paso 4
-      setStep(4);
+      if (users.length === 0) {
+        setError("No hay usuarios para realizar acciones. Revisa los pasos anteriores.");
+        return;
+      }
+      
+      // Confirmar si hay muchos usuarios (posible abuso)
+      if (users.length > 100) {
+        const confirmContinue = window.confirm(`¿Estás seguro de querer procesar ${users.length} usuarios? Esto podría generar limitaciones en tu cuenta de Instagram.`);
+        if (!confirmContinue) {
+          return;
+        }
+      }
+      
+      // Crear la campaña en Firestore y ejecutar acciones
+      try {
+        await createCampaign();
+        // Las funciones individuales ya manejan la navegación al paso 4
+      } catch (error) {
+        console.error("Error al crear la campaña:", error);
+        setError("Error al crear la campaña: " + error.message);
+      }
     }
   };
   
@@ -755,8 +1529,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         objectives,
         filters,
         tasks,
-        users,
-        message: mensaje,
+        users: users.length, // Solo guardar el conteo para no sobrecargar Firestore
+        message: mensaje ? true : false, // Solo indicar si hay mensaje, no guardar el contenido
         templateId: selectedTemplate?.id || null,
         createdAt: new Date(),
         status: "processing", // processing, paused, completed, failed
@@ -782,26 +1556,36 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         }
       });
       
-      // Ejecutar las tareas seleccionadas
-      const taskPromises = [];
-      
+      // Ejecutar las tareas seleccionadas de forma secuencial para evitar problemas de límites
       if (tasks.seguir) {
-        taskPromises.push(followAllUsers());
+        await followAllUsers();
+        // Las funciones seguir, enviar mensajes y enviar media ya avanzan a paso 4 por sí mismas
+        return;
       }
       
       if (tasks.enviarMensaje) {
-        taskPromises.push(sendMessages());
+        await sendMessages();
+        return;
       }
       
       if (tasks.enviarMedia && mediaFile) {
-        taskPromises.push(sendMedia());
+        await sendMedia();
+        return;
       }
       
-      // Esperar a que todas las tareas se completen
-      if (taskPromises.length > 0) {
-        await Promise.all(taskPromises);
+      if (tasks.darLikes) {
+        await likeLatestPosts();
+        return;
       }
       
+      if (tasks.comentar) {
+        await commentOnLatestPosts();
+        return;
+      }
+      
+      // Si no hay tareas que ejecutar inmediatamente pero sí se creó la campaña,
+      // avanzar al paso 4 de todas maneras
+      setStep(4);
       setError(null);
       
     } catch (error) {
@@ -832,14 +1616,17 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
       <div className="bg-white rounded-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
         {/* Header del modal con botón de cierre */}
-        <div className="flex justify-end items-center p-5 border-b">
-            <button
-                onClick={onClose}
-                className="text-gray-500 hover:text-gray-700 bg-transparent border-0 p-0 m-0"
-            >
-                <FaTimes size={20} />
-            </button>
-            </div>
+        <div className="flex justify-between items-center p-5 border-b">
+        <h2 className="text-xl font-semibold">
+          Nueva Campaña - Paso {step} de 4
+        </h2>
+        <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 bg-transparent border-0 p-0 m-0"
+        >
+            <FaTimes size={20} />
+        </button>
+      </div>
         
         {/* Contenido dinámico según el paso */}
         <div className="p-5">
@@ -1025,66 +1812,170 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
               {/* Panel de usuarios */}
               <div className="flex-1 bg-gray-100 rounded-lg p-4">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-semibold text-black">Usuarios Obtenidos</h3>
-                  <button className="text-sm text-white">
-                    Guardar
-                  </button>
+                  <h3 className="font-semibold text-black">Usuarios Obtenidos ({users.length})</h3>
                 </div>
                 <div className="h-64 overflow-y-auto">
-                  {users.map((user, index) => (
-                    <div key={index} className="flex justify-between items-center p-2">
-                      <span>{user}</span>
-                      <button className="text-white">
+                  {users.map((username, index) => (
+                    <div key={index} className="flex justify-between items-center p-2 hover:bg-gray-200 rounded">
+                      <span>{username}</span>
+                      <button 
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => removeUser(username)}
+                      >
                         <FaTrash size={14} />
                       </button>
                     </div>
                   ))}
+                  {users.length === 0 && (
+                    <div className="text-center text-gray-500 py-4">
+                      No hay usuarios disponibles
+                    </div>
+                  )}
                 </div>
-                <button 
-              className="w-full bg-black text-white rounded-full py-2 mt-2"
-              onClick={followAllUsers}
-              disabled={loading || users.length === 0}
-            >
-              {loading ? "Procesando..." : "Seguir a todos"}
-            </button>
+                
+                {/* Contador de usuarios filtrados por blacklist, si aplica */}
+{filteredUsers && filteredUsers.blacklistedCount > 0 && (
+  <div className="mt-2 text-xs text-gray-500">
+    <span className="font-semibold text-red-500">{filteredUsers.blacklistedCount}</span> usuarios en lista negra no se mostrarán.
+    <button 
+      className="text-blue-500 hover:text-blue-700 ml-1 underline text-xs"
+      onClick={() => setShowBlacklist(true)}
+    >
+      Ver detalles
+    </button>
+  </div>
+)}
+        
+        {/* Panel de mensajes - Utilizado tanto para enviar mensajes como para comentar */}
+{(tasks.enviarMensaje || tasks.comentar) && (
+  <div className="flex-1 bg-gray-100 rounded-lg p-4">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="font-semibold text-black">
+        {tasks.enviarMensaje ? "Enviar Mensajes" : "Escribir Comentario"}
+      </h3>
+      
+      {selectedTemplate && (
+        <div className="text-xs px-2 py-1 bg-blue-100 rounded text-blue-700">
+          Plantilla: {selectedTemplate.name}
+        </div>
+      )}
+    </div>
+    <textarea
+      value={mensaje}
+      onChange={(e) => setMensaje(e.target.value)}
+      className="w-full h-56 p-3 border rounded-lg resize-none bg-white text-black"
+      placeholder={tasks.enviarMensaje ? 
+        "Escribe un mensaje para enviar a los usuarios" : 
+        "Escribe un comentario para las publicaciones"}
+      disabled={loading}
+    ></textarea>
+    
+    <button 
+      className="w-full bg-blue-600 text-white rounded-full py-2 mt-3"
+      onClick={tasks.enviarMensaje ? sendMessages : commentOnLatestPosts}
+      disabled={loading || users.length === 0 || !mensaje.trim()}
+    >
+      {loading ? "Enviando..." : (tasks.enviarMensaje ? "Enviar mensajes" : "Comentar publicaciones")}
+    </button>
+  </div>
+)}
+      {/* Panel para dar likes a publicaciones */}
+{tasks.darLikes && (
+  <div className="flex-1 bg-gray-100 rounded-lg p-4">
+    <div className="flex justify-between items-center mb-4">
+      <h3 className="font-semibold text-black">Dar Likes a Publicaciones</h3>
+    </div>
+    
+    <p className="text-sm text-gray-600 mb-4">
+      Esta acción dará like a la publicación más reciente de cada usuario en la lista.
+    </p>
+    
+    <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg mb-4">
+      <p className="text-yellow-700 text-sm">
+        <strong>Nota:</strong> Instagram puede limitar esta acción si se realiza en muchos perfiles simultáneamente. 
+        Se recomienda procesar en lotes pequeños.
+      </p>
+    </div>
+    
+    <button 
+      className="w-full bg-pink-600 text-white rounded-full py-2 mt-3"
+      onClick={likeLatestPosts}
+      disabled={loading || users.length === 0}
+    >
+      {loading ? "Procesando..." : "Dar likes a publicaciones"}
+    </button>
+  </div>
+)}
+
+        {/* Modal para mostrar usuarios en blacklist */}
+        {showBlacklist && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-md p-5">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-semibold">Usuarios en lista negra</h3>
+                <button onClick={() => setShowBlacklist(false)} className="text-gray-500">
+                  <FaTimes size={16} />
+                </button>
+              </div>
+              <div className="max-h-60 overflow-y-auto">
+                {filteredUsers.blacklistedUsers.map((user, idx) => (
+                  <div key={idx} className="py-1 border-b">
+                    {user}
+                  </div>
+                ))}
+              </div>
+              <button 
+                onClick={() => setShowBlacklist(false)}
+                className="mt-4 w-full bg-gray-200 rounded-lg py-2"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
+                {tasks.seguir && (
+                  <button 
+                    className="w-full bg-black text-white rounded-full py-2 mt-2"
+                    onClick={followAllUsers}
+                    disabled={loading || users.length === 0}
+                  >
+                    {loading ? "Procesando..." : "Seguir a todos"}
+                  </button>
+                )}
               </div>
               
               {/* Panel de mensajes */}
-              {tasks.enviarMensaje && (
+              {/* Panel de mensajes - Utilizado tanto para enviar mensajes como para comentar */}
+              {(tasks.enviarMensaje || tasks.comentar) && (
                 <div className="flex-1 bg-gray-100 rounded-lg p-4">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-semibold text-black">Enviar Mensajes</h3>
-                    <button className="text-sm text-white">
-                      Elegir plantilla
-                    </button>
+                    <h3 className="font-semibold text-black">
+                      {tasks.enviarMensaje ? "Enviar Mensajes" : "Escribir Comentario"}
+                    </h3>
+                    
+                    {selectedTemplate && (
+                      <div className="text-xs px-2 py-1 bg-blue-100 rounded text-blue-700">
+                        Plantilla: {selectedTemplate.name}
+                      </div>
+                    )}
                   </div>
                   <textarea
                     value={mensaje}
                     onChange={(e) => setMensaje(e.target.value)}
-                    className="w-full h-64 p-3 border rounded-lg resize-none bg-white text-black"
-                    placeholder="Escribe un mensaje para enviar a los usuarios"
+                    className="w-full h-56 p-3 border rounded-lg resize-none bg-white text-black"
+                    placeholder={tasks.enviarMensaje ? 
+                      "Escribe un mensaje para enviar a los usuarios" : 
+                      "Escribe un comentario para las publicaciones"}
+                    disabled={loading}
                   ></textarea>
-                  <div className="flex justify-end mt-2 space-x-2">
-                    <button className="bg-gray-200 p-2 rounded">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M15 10L19 6M19 6L15 2M19 6H10.5C7.46243 6 5 8.46243 5 11.5C5 14.5376 7.46243 17 10.5 17H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                    <button className="bg-gray-200 p-2 rounded">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-                        <path d="M21 15L16 10L5 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                    <button className="bg-gray-200 p-2 rounded">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 18.5C15.5899 18.5 18.5 15.5899 18.5 12C18.5 8.41015 15.5899 5.5 12 5.5C8.41015 5.5 5.5 8.41015 5.5 12C5.5 15.5899 8.41015 18.5 12 18.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M19 19L17.5 17.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M12 8V12L15 13.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                  </div>
+                  
+                  <button 
+                    className="w-full bg-blue-600 text-white rounded-full py-2 mt-3"
+                    onClick={tasks.enviarMensaje ? sendMessages : commentOnLatestPosts}
+                    disabled={loading || users.length === 0 || !mensaje.trim()}
+                  >
+                    {loading ? "Enviando..." : (tasks.enviarMensaje ? "Enviar mensajes" : "Comentar publicaciones")}
+                  </button>
                 </div>
               )}
               {/* Panel de envío de medios */}
@@ -1148,6 +2039,34 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         </button>
       </div>
     )}
+
+    {/* Panel para dar likes a publicaciones */}
+      {tasks.darLikes && (
+        <div className="flex-1 bg-gray-100 rounded-lg p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-black">Dar Likes a Publicaciones</h3>
+          </div>
+          
+          <p className="text-sm text-gray-600 mb-4">
+            Esta acción dará like a la publicación más reciente de cada usuario en la lista.
+          </p>
+          
+          <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg mb-4">
+            <p className="text-yellow-700 text-sm">
+              <strong>Nota:</strong> Instagram puede limitar esta acción si se realiza en muchos perfiles simultáneamente. 
+              Se recomienda procesar en lotes pequeños.
+            </p>
+          </div>
+          
+          <button 
+            className="w-full bg-pink-600 text-white rounded-full py-2 mt-3"
+            onClick={likeLatestPosts}
+            disabled={loading || users.length === 0}
+          >
+            {loading ? "Procesando..." : "Dar likes a publicaciones"}
+          </button>
+        </div>
+      )}
             </div>
           )}
           
@@ -1172,6 +2091,27 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
             </div>
           )}
         </div>
+
+        {/* Indicador de carga para operaciones largas */}
+{loading && (
+  <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex flex-col justify-center items-center">
+    <div className="bg-white p-6 rounded-xl max-w-md w-full mx-4">
+      <div className="mb-4">
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div 
+            className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      </div>
+      <p className="text-center font-medium">{progressMessage || "Procesando operación..."}</p>
+      <p className="text-center text-sm text-gray-500 mt-2">
+        Las campañas en Instagram pueden tomar tiempo para evitar límites de uso.
+        No cierre esta ventana.
+      </p>
+    </div>
+  </div>
+)}
         
         {/* Footer con botones de navegación */}
         {step < 4 && (

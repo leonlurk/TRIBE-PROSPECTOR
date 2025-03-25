@@ -34,32 +34,37 @@ function getCommonHeaders() {
 }
 
 // Función genérica para peticiones a la API
+// Línea aproximada 23 en instagramApi.js
 async function apiRequest(endpoint, params = {}, method = "POST") {
-  const formData = new FormData();
-  
-  // Agregar todos los parámetros como FormData
-  Object.keys(params).forEach(key => {
-    formData.append(key, params[key]);
-  });
-  
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method,
-      headers: getCommonHeaders(),
-      body: formData,
+    // Cambiar FormData por URLSearchParams
+    const urlParams = new URLSearchParams();
+    
+    // Agregar todos los parámetros
+    Object.keys(params).forEach(key => {
+      urlParams.append(key, params[key]);
     });
     
-    if (!response.ok) {
-      throw new Error(`Error HTTP: ${response.status}`);
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method,
+        headers: {
+          ...getCommonHeaders(),
+          "Content-Type": "application/x-www-form-urlencoded" // Agregar este encabezado
+        },
+        body: urlParams, // Usar urlParams en lugar de formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error en petición a ${endpoint}:`, error);
+      throw error;
     }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error(`Error en petición a ${endpoint}:`, error);
-    throw error;
   }
-}
 
 // Implementación de cada endpoint según la documentación
 export const instagramApi = {

@@ -1312,6 +1312,13 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
     setError("");
     
     try {
+      console.log("=====================");
+    console.log("DEPURACIÓN /obtener_likes");
+    console.log("Token usado:", instagramToken);
+    console.log("URL de post:", targetLink);
+    console.log("Tipo de token:", typeof instagramToken);
+    console.log("Token en localStorage:", localStorage.getItem("instagram_bot_token"));
+    console.log("=====================");
       // Log the get likes attempt
       if (user) {
         await logApiRequest({
@@ -1832,7 +1839,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
                     </div>
                   )}
                 </div>
-                
+
                 {/* Contador de usuarios filtrados por blacklist, si aplica */}
 {filteredUsers && filteredUsers.blacklistedCount > 0 && (
   <div className="mt-2 text-xs text-gray-500">

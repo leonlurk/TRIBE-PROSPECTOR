@@ -283,22 +283,6 @@ const ModalEditarPlantilla = ({
                     ))}
                 </select>
 
-                {/* Tipo de plantilla */}
-                <label className="text-gray-600 text-xs md:text-sm font-medium">Tipo de plantilla</label>
-                <select
-                    className="w-full p-2 md:p-3 mt-1 mb-3 md:mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#C6CEFF] bg-white text-gray-700 text-sm md:text-base"
-                    value={tipo}
-                    onChange={(e) => {
-                        setTipo(e.target.value);
-                        if (isCreateMode && setSelectedType) setSelectedType(e.target.value);
-                    }}
-                    disabled={isLoading}
-                >
-                    {tipos.map(t => (
-                        <option key={t} value={t}>{t}</option>
-                    ))}
-                </select>
-
                 {/* Cuerpo */}
                 <label className="text-gray-600 text-xs md:text-sm font-medium">Cuerpo</label>
                 <div className="border border-gray-300 rounded-lg mt-1">

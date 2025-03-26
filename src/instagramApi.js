@@ -35,36 +35,51 @@ function getCommonHeaders() {
 
 // Función genérica para peticiones a la API
 // Línea aproximada 23 en instagramApi.js
-async function apiRequest(endpoint, params = {}, method = "POST") {
-    // Cambiar FormData por URLSearchParams
-    const urlParams = new URLSearchParams();
+async function apiRequest(endpoint, params = {}, method = "POST", customToken = null) {
+  console.log(`API Request to ${endpoint}:`, { params, method, customToken });
+  // Cambiar FormData por URLSearchParams
+  const urlParams = new URLSearchParams();
+  
+  // Agregar todos los parámetros
+  Object.keys(params).forEach(key => {
+    urlParams.append(key, params[key]);
+  });
+  
+  try {
+    // Obtener headers comunes
+    const headers = {
+      ...getCommonHeaders(),
+      "Content-Type": "application/x-www-form-urlencoded"
+    };
     
-    // Agregar todos los parámetros
-    Object.keys(params).forEach(key => {
-      urlParams.append(key, params[key]);
+    // Si hay token personalizado, usarlo
+    if (customToken) {
+      headers["token"] = customToken;
+    }
+    
+    // Log headers right before the request
+    console.log("Request headers:", headers);
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method,
+      headers,
+      body: urlParams, // Usar urlParams en lugar de formData
     });
     
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method,
-        headers: {
-          ...getCommonHeaders(),
-          "Content-Type": "application/x-www-form-urlencoded" // Agregar este encabezado
-        },
-        body: urlParams, // Usar urlParams en lugar de formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error(`Error en petición a ${endpoint}:`, error);
-      throw error;
+    console.log(`Response status for ${endpoint}:`, response.status);
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
     }
+    
+    const data = await response.json();
+    console.log(`Response data for ${endpoint}:`, data);
+    return data;
+  } catch (error) {
+    console.error(`Error en petición a ${endpoint}:`, error);
+    throw error;
   }
+}
 
 // Implementación de cada endpoint según la documentación
 export const instagramApi = {
@@ -116,24 +131,36 @@ export const instagramApi = {
   resetSession: (username) => apiRequest("/reset_session", { username }),
   
   // Operaciones
-  getLikes: (postLink) => apiRequest("/obtener_likes", { link: postLink }),
-  
-  followUsers: (users) => {
-    // Asegurar que users sea un array y convertirlo a string separado por comas
-    const usersStr = Array.isArray(users) ? users.join(",") : users;
-    return apiRequest("/seguir_usuarios", { usuarios: usersStr });
+  getLikes: (postLink, token = null) => {
+    console.log("getLikes called with:", { postLink, token });
+    console.log("Current localStorage token:", localStorage.getItem("instagram_bot_token"));
+    
+    return apiRequest("/obtener_likes", { link: postLink }, "POST", token)
+      .then(data => {
+        console.log("getLikes success response:", data);
+        return data;
+      })
+      .catch(error => {
+        console.error("getLikes error:", error);
+        throw error;
+      });
   },
   
-  sendMessages: (users, message, skipExisting = false) => {
+  followUsers: (users, token = null) => {
+    const usersStr = Array.isArray(users) ? users.join(",") : users;
+    return apiRequest("/seguir_usuarios", { usuarios: usersStr }, "POST", token);
+  },
+  
+  sendMessages: (users, message, skipExisting = false, token = null) => {
     const usersStr = Array.isArray(users) ? users.join(",") : users;
     return apiRequest("/enviar_mensajes_multiple", { 
       usuarios: usersStr, 
       mensaje: message,
       skip_existing: skipExisting 
-    });
+    }, "POST", token);
   },
   
-  sendMedia: async (users, file, mediaType, message = "", skipExisting = false) => {
+  sendMedia: async (users, file, mediaType, message = "", skipExisting = false, token = null) => {
     const usersStr = Array.isArray(users) ? users.join(",") : users;
     
     // Usar FormData para archivos
@@ -145,23 +172,27 @@ export const instagramApi = {
     formData.append("skip_existing", skipExisting);
     
     // Petición especial para FormData
-    try {
-      const response = await fetch(`${API_BASE_URL}/enviar_media`, {
-        method: "POST",
-        headers: getCommonHeaders(),
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error HTTP: ${response.status}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error(`Error en envío de media:`, error);
-      throw error;
+  try {
+    // Obtener headers y agregar token personalizado si existe
+    const headers = getCommonHeaders();
+    if (token) headers["token"] = token;
+    
+    const response = await fetch(`${API_BASE_URL}/enviar_media`, {
+      method: "POST",
+      headers: headers,
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
     }
-  },
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error en envío de media:`, error);
+    throw error;
+  }
+},
   
   // Estadísticas y gestión
   getUsageStats: () => apiRequest("/usage_stats", {}, "GET"),
@@ -181,11 +212,11 @@ export const instagramApi = {
   getCachedLikes: () => apiRequest("/get_cached_likes", {}, "GET"),
   
   // Operaciones adicionales
-  getComments: (postUrl, amount = 50) => 
-    apiRequest("/get_comments", { post_url: postUrl, amount }),
+  getComments: (postUrl, token = null) => 
+    apiRequest("/get_comments", { post_url: postUrl }, "POST", token),
   
-  getFollowers: (username, amount = 50) => 
-    apiRequest("/get_followers", { username, amount }),
+  getFollowers: (username, token = null) => 
+    apiRequest("/get_followers", { username }, "POST", token),
   
   getFollowing: (username, amount = 50) => 
     apiRequest("/get_following", { username, amount }),

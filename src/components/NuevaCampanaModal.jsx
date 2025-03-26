@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback  } from "react";
 import PropTypes from 'prop-types';
 import { FaArrowRight, FaTimes } from "react-icons/fa";
 import { collection, addDoc, getDocs } from "firebase/firestore";
@@ -8,7 +8,7 @@ import { instagramApi } from "../instagramApi";
 import { checkBlacklistedUsers } from "../blacklistUtils";
 import { createCampaignOptions, startCampaignMonitoring } from "../campaignIntegration";
 import { createCampaign as createCampaignStore, updateCampaign, ensureUserExists } from '../campaignStore';
-
+import WhitelistSelector from './WhitelistSelector';
 
 // Componentes
 import UsersList from './UsersList';
@@ -31,6 +31,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [templates, setTemplates] = useState([]);
+  const [showWhitelistModal, setShowWhitelistModal] = useState(false);
   
   // Estados para multimedia
   const [mediaFile, setMediaFile] = useState(null);
@@ -63,8 +64,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
     enviarMedia: false
   });
   
-  // Funciones auxiliares
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     if (!user?.uid) return;
     
     try {
@@ -78,8 +78,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
     } catch (error) {
       console.error("Error al cargar plantillas:", error);
     }
-  };
-
+  }, [user]);
   const updateProgress = (percentage, message = "") => {
     setProgress(percentage);
     if (message) setProgressMessage(message);
@@ -136,39 +135,12 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
   };
   
   // Reset del estado cuando se abre/cierra el modal
-  useEffect(() => {
-    if (!isOpen) {
-      setStep(1);
-      setCampaignName("");
-      setTargetLink("");
-      setTargetType("publicacion");
-      setIsProspecting(false);
-      setObjectives({ comentarios: false, likes: false, seguidores: false });
-      setFilters({ genero: false });
-      setTasks({
-        seguir: false,
-        enviarMensaje: false,
-        darLikes: false,
-        comentar: false,
-        enviarMedia: false
-      });
-      setUsers([]);
-      setMensaje("");
-      setSelectedTemplate(null);
-      setLoading(false);
-      setError("");
-      setMediaFile(null);
-      setMediaPreview(null);
-      setMediaType("image");
-      setMediaCaption("");
-    }
-  }, [isOpen]);
 
   useEffect(() => {
-    if (user?.uid) {
+    if (isOpen && user?.uid) {
       fetchTemplates();
     }
-  }, [user, fetchTemplates]);
+  }, [isOpen, user, fetchTemplates]);
   
   // Manejadores para obtener usuarios
   const getLikesFromPost = async () => {
@@ -181,6 +153,8 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
     setError("");
     
     try {
+      console.log("Starting getLikesFromPost with link:", targetLink, "token:", instagramToken?.substring(0, 15) + "...");
+      
       if (user) {
         await logApiRequest({
           endpoint: "/obtener_likes",
@@ -192,7 +166,9 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         });
       }
       
-      const data = await instagramApi.getLikes(targetLink);
+      console.log("Before API call to getLikes");
+      const data = await instagramApi.getLikes(targetLink, instagramToken);
+      console.log("After API call, received data:", data);
       
       if (user) {
         await logApiRequest({
@@ -214,14 +190,21 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       }
       
       if (data.status === "success") {
+        console.log("Success! Setting users with", data.likes?.length, "users");
+        console.log("Sample users:", data.likes?.slice(0, 3));
         setUsers(data.likes);
+        setTimeout(() => {
+          setStep(step + 1);
+        }, 150);
         return true;
       } else {
+        console.log("Setting error - API returned:", data.status, data.message || "No message");
         setError("Error al obtener likes: " + (data.message || "Error desconocido"));
         return false;
       }
     } catch (error) {
-      console.error("Error al conectar con la API:", error);
+      console.error("Exception in getLikesFromPost:", error);
+      console.log("Setting error message:", "Error de conexión o problema de red.");
       setError("Error de conexión o problema de red.");
       
       if (user) {
@@ -241,6 +224,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       return false;
     } finally {
       setLoading(false);
+      console.log("getLikesFromPost completed");
     }
   };
   
@@ -265,7 +249,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         });
       }
       
-      const data = await instagramApi.getComments(targetLink);
+      const data = await instagramApi.getComments(targetLink, instagramToken);
       
       if (user) {
         await logApiRequest({
@@ -319,7 +303,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
   };
   
   const getFollowersFromProfile = async () => {
-    const usernameMatch = targetLink.match(/instagram\.com\/([^\/\?]+)/);
+    const usernameMatch = targetLink.match(/instagram\.com\/([^/?]+)/);
     if (!usernameMatch || !usernameMatch[1]) {
       setError("No se pudo extraer el nombre de usuario del enlace de perfil");
       return false;
@@ -341,7 +325,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
         });
       }
       
-      const data = await instagramApi.getFollowers(username);
+      const data = await instagramApi.getFollowers(username, instagramToken);
       
       if (user) {
         await logApiRequest({
@@ -449,7 +433,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       }
       
       updateProgress(40, `Enviando solicitud para seguir a ${result.length} usuarios...`);
-      const data = await instagramApi.followUsers(result);
+      const data = await instagramApi.followUsers(result, instagramToken);
       updateProgress(70, "Procesando resultados...");
       
       if (campaignId) {
@@ -583,7 +567,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
       }
       
       updateProgress(40, `Enviando mensajes a ${result.length} usuarios...`);
-      const data = await instagramApi.sendMessages(result, mensaje, false);
+      const data = await instagramApi.sendMessages(result, mensaje, false, instagramToken);
       updateProgress(70, "Procesando resultados...");
       
       if (campaignId) {
@@ -1131,9 +1115,9 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           }
           
           setStep(step + 1);
-        } else if (users.length === 0) {
+        } /* else if (users.length === 0) {
           setError("No se pudieron obtener usuarios para la campaña");
-        }
+        } */
       } catch (error) {
         console.error("Error al obtener usuarios:", error);
         setError("Error al obtener usuarios: " + error.message);
@@ -1301,12 +1285,12 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
               <div className="mb-4">
                 <label className="block text-xl text-black font-semibold mb-2">Nombre de la Campaña</label>
                 <input 
-                  type="text"
-                  value={campaignName}
-                  onChange={(e) => setCampaignName(e.target.value)}
-                  className="w-full bg-white text-black p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ej: Influencers Fitness"
-                />
+                type="text"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                className="w-full bg-white text-black p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Ej: Influencers Fitness"
+              />
               </div>
               
               <div className="mb-4">
@@ -1449,6 +1433,7 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           {/* Paso 3: Usuarios y acciones - Modifica para que sea como la segunda captura */}
       {step === 3 && (
         <div className="flex gap-0">
+          {console.log("Rendering step 3 with users:", users)}
           {/* Lista de usuarios - Fondo blanco en lugar de gris */}
           <UsersList 
             users={users}
@@ -1588,6 +1573,23 @@ const NuevaCampanaModal = ({ isOpen, onClose, user, instagramToken }) => {
           message={progressMessage}
         />
       )}
+      {showWhitelistModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div className="w-full max-w-md">
+      <WhitelistSelector
+        user={user}
+        db={db}
+        users={users}
+        onClose={() => setShowWhitelistModal(false)}
+        onWhitelistAdded={(whitelist) => {
+          // Optional: Add any additional handling after whitelist creation
+          console.log('Users added to whitelist:', whitelist);
+          setShowWhitelistModal(false);
+        }}
+      />
+    </div>
+  </div>
+)}
     </div>
   );
 };
@@ -1596,7 +1598,8 @@ NuevaCampanaModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   user: PropTypes.object,
-  instagramToken: PropTypes.string
+  instagramToken: PropTypes.string,
+  initialTab: PropTypes.string
 };
 
 export default NuevaCampanaModal;

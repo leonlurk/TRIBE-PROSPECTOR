@@ -6,7 +6,6 @@ import Sidebar from "./Sidebar";
 import { FaSearch, FaPlus, FaSlidersH, FaBars, FaBan } from "react-icons/fa";
 import ChartComponent from "./components/ChartComponent";
 import ConnectInstagram from "./components/ConnectInstagram";
-import NuevaSolicitudPanel from "./components/NuevaSolicitudPanel";
 import ModalEditarPlantilla from "./components/ModalEditarPlantilla";
 import WhitelistPanel from "./components/WhitelistPanel";
 import BlacklistPanel from "./components/BlacklistPanel";
@@ -422,7 +421,9 @@ const Dashboard = () => {
         );
       }
       return (
-        <NuevaSolicitudPanel
+        <NuevaCampanaModal
+          isOpen={true}
+          onClose={() => setSelectedOption("Home")}
           instagramToken={instagramToken}
           user={user}
           templates={templates}
@@ -560,7 +561,9 @@ const Dashboard = () => {
         );
       }
       return (
-        <NuevaSolicitudPanel
+        <NuevaCampanaModal
+          isOpen={true}
+          onClose={() => setSelectedOption("Home")}
           instagramToken={instagramToken}
           user={user}
           templates={templates}

@@ -355,29 +355,26 @@ const CampaignsPanel = ({ user, onRefreshStats, onCreateCampaign }) => {
                   />
                   </div>
                   <div className="ml-4">
-                    <h3 className="font-medium text-lg text-black">Influencers Fitness</h3>
-                    <p className="text-sm text-gray-500">Enviar Mensajes</p>
+                  <h3 className="font-medium text-lg text-black">
+                    {campaign.name || "Campaña sin nombre"}
+                  </h3>
+                    <p className="text-sm text-gray-500">En proceso</p>
                   </div>
                 </div>
 
                 {/* Estado y menú */}
                 <div className="flex items-center">
-                  <span className={`px-8 py-3 rounded-full text-sm font-medium ${
-                    campaign.status === 'processing' ? 'bg-green-100 text-green-800' :
-                    campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-800' : 
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {campaign.status === 'processing' ? 'Activa' :
-                     campaign.status === 'paused' ? 'Pausada' : 'Terminada'}
-                  </span>
-                  <button className="ml-4 text-gray-400 bg-transparent border-0 p-0">
-                    <img
-                      src="/assets/setting-5.png"
-                      alt="Opciones"
-                      className="w-12 h-12"
-                    />
-                  </button>
-                </div>
+  <span className="px-8 py-3 rounded-full text-sm font-medium bg-green-100 text-green-800">
+    Activa
+  </span>
+  <button className="ml-4 text-gray-400 bg-transparent border-0 p-0">
+    <img
+      src="/assets/setting-5.png"
+      alt="Opciones"
+      className="w-12 h-12"
+    />
+  </button>
+</div>
               </div>
             );
           })

@@ -5,6 +5,8 @@ import logApiRequest from "../requestLogger"; // Import the logger utility
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import { saveInstagramSession } from "../instagramSessionUtils";
+// Importa el componente de animación
+import AnimatedBackground from "./AnimatedBackground";
 
 const API_BASE_URL = "https://alets.com.ar";
 
@@ -323,208 +325,224 @@ const ConnectInstagram = ({
   };
 
   return (
-    <div className="p-4 md:p-6 bg-[#F3F2FC] min-h-screen">
-      <h1 className="text-xl md:text-2xl font-bold mb-4 text-[#393346]">
-        Bienvenido, {user?.displayName || "Usuario"}
-      </h1>
+    <div className="relative min-h-screen">
+      {/* Agrega el componente de animación */}
+      <AnimatedBackground />
+      
+      {/* Contenido con fondo semi-transparente */}
+      <div className="relative z-10 p-4 md:p-6 min-h-screen flex flex-col justify-center">
+      <div>
+    <h1 className="text-xl md:text-2xl font-bold mb-4 text-[#393346]">
+      Bienvenido, {user?.displayName || "Usuario"}
+    </h1>
 
-      {(window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1") &&
-        debugInfo && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-300 rounded-lg">
-            <details>
-              <summary className="font-medium text-blue-700 cursor-pointer">
-                Debug Information (Developer Only)
-              </summary>
-              <pre className="mt-2 text-xs overflow-auto max-h-60 p-2 bg-white border rounded">
-                {JSON.stringify(debugInfo, null, 2)}
-              </pre>
-            </details>
+    {(window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1") &&
+      debugInfo && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-300 rounded-lg">
+          <details>
+            <summary className="font-medium text-blue-700 cursor-pointer">
+              Debug Information (Developer Only)
+            </summary>
+            <pre className="mt-2 text-xs overflow-auto max-h-60 p-2 bg-white border rounded">
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
+          </details>
+        </div>
+      )}
+  </div>
+  
+  {/* Contenido centrado */}
+  <div className="flex-grow flex flex-col items-center justify-center">
+    <div className="text-center mb-8">
+      <h2 className="text-2xl font-bold text-[#5468FF] mb-2">¡Comienza a prospectar en Instagram!</h2>
+      <p className="text-gray-600">Conecta tu cuenta para empezar a generar nuevos leads</p>
+    </div>
+    
+    <button
+      onClick={() => setShowModal(true)}
+      className="px-4 md:px-6 py-2 md:py-3 bg-white text-black rounded-full shadow-sm font-semibold hover:border-[#646cff] hover:bg-[#232323]/30 border-2 transition text-sm md:text-base"
+    >
+      Conectar Instagram
+    </button>
+  </div>
+
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50 p-4">
+            <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-[400px] shadow-md">
+              {needs2FA ? (
+                <Instagram2FAVerification
+                  username={username}
+                  onVerify2FA={(token) => {
+                    // Cuando 2FA es success, avisamos al padre con el token
+                    onVerify2FA(token);
+                  }}
+                  onCancel={handleCancel2FA}
+                  errorMessage={errorMessage}
+                  deviceId={deviceId}
+                  user={user}
+                />
+              ) : showRecoveryInfo ? (
+                <>
+                  <h2 className="text-base md:text-lg font-semibold text-black mb-4">
+                    Recuperar acceso a Instagram
+                  </h2>
+                  <div className="text-gray-700 text-xs md:text-sm mb-4">
+                    <p className="mb-2">
+                      Instagram ha detectado actividad inusual en tu cuenta y requiere verificación
+                      adicional:
+                    </p>
+                    <ol className="list-decimal pl-5 space-y-1">
+                      <li>Abre la aplicación de Instagram en tu dispositivo</li>
+                      <li>
+                        Revisa tus notificaciones o correo electrónico para el mensaje de seguridad
+                      </li>
+                      <li>Sigue las instrucciones para verificar tu identidad</li>
+                      <li>
+                        Una vez confirmada, regresa aquí e intenta conectarte de nuevo
+                      </li>
+                    </ol>
+                  </div>
+                  <button
+                    onClick={() => setShowRecoveryInfo(false)}
+                    className="w-full py-2 bg-[#8998F1] text-white rounded-md font-medium hover:bg-[#7988E0] transition text-sm md:text-base"
+                  >
+                    Volver al inicio de sesión
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-base md:text-lg font-semibold text-black mb-4">
+                    Conectar cuenta de Instagram
+                  </h2>
+                  {errorMessage && (
+                    <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
+                      {errorMessage}
+                    </div>
+                  )}
+                  {localErrorMessage && !errorMessage && (
+                    <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
+                      {localErrorMessage}
+                    </div>
+                  )}
+                  {hasLoginError && !errorMessage && !localErrorMessage && (
+                    <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
+                      Error al conectar. Verifica tus credenciales.
+                    </div>
+                  )}
+
+                  <input
+                    type="email"
+                    placeholder="Correo de Instagram"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full p-2 md:p-3 border border-[#A6A6A6] rounded-md mb-3 text-[#393346] placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-[#5468FF] text-sm md:text-base"
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="Contraseña"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full p-2 md:p-3 border border-[#A6A6A6] rounded-md mb-3 text-[#393346] placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-[#5468FF] text-sm md:text-base"
+                  />
+
+                  <div className="flex items-start gap-2 mb-4">
+                    <input
+                      type="checkbox"
+                      id="prospectar"
+                      className="mt-1 cursor-pointer"
+                      checked={acceptedTerms}
+                      onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    />
+                    <label
+                      htmlFor="prospectar"
+                      className="text-xs md:text-sm text-black cursor-pointer"
+                    >
+                      Aceptar términos y condiciones y políticas de privacidad en el inicio de sesión
+                      de instagram. Los términos y condiciones y políticas de privacidad se vean en la
+                      misma pagina.
+                    </label>
+                  </div>
+                  {!acceptedTerms && (
+                    <div className="text-red-500 text-xs mb-3">
+                      Debes aceptar los términos y condiciones para continuar.
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleConnectInstagram}
+                    disabled={isSubmitting || !acceptedTerms || !email || !password}
+                    className={`w-full py-2 ${
+                      isSubmitting || !acceptedTerms || !email || !password
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-[#8998F1] hover:bg-[#7988E0] cursor-pointer"
+                    } text-white rounded-md font-medium transition flex justify-center items-center text-sm md:text-base`}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Conectando...
+                      </>
+                    ) : (
+                      "Siguiente →"
+                    )}
+                  </button>
+                </>
+              )}
+
+              {instagramToken && !needs2FA && !showRecoveryInfo && (
+                <div className="mt-4 p-2 md:p-3 bg-gray-100 border rounded">
+                  <p className="text-xs md:text-sm text-gray-600">Token de Instagram:</p>
+                  <p className="text-xs font-mono break-all">
+                    {instagramToken.substring(0, 40)}...
+                  </p>
+                </div>
+              )}
+
+              <div className="text-right mt-2">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-500 text-xs md:text-sm bg-[#CCCCCC] hover:bg-[#7988E0] transition px-3 md:px-4 py-1 md:py-2 rounded"
+                  disabled={isSubmitting}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
-      <button
-        onClick={() => setShowModal(true)}
-        className="px-4 md:px-6 py-2 md:py-3 bg-blue-600 text-white rounded-full shadow-sm font-semibold hover:bg-blue-700 transition text-sm md:text-base"
-      >
-        Conectar Instagram
-      </button>
-
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-[400px] shadow-md">
-            {needs2FA ? (
-              <Instagram2FAVerification
-                username={username}
-                onVerify2FA={(token) => {
-                  // Cuando 2FA es success, avisamos al padre con el token
-                  onVerify2FA(token);
-                }}
-                onCancel={handleCancel2FA}
-                errorMessage={errorMessage}
-                deviceId={deviceId}
-                user={user}
-              />
-            ) : showRecoveryInfo ? (
-              <>
-                <h2 className="text-base md:text-lg font-semibold text-black mb-4">
-                  Recuperar acceso a Instagram
-                </h2>
-                <div className="text-gray-700 text-xs md:text-sm mb-4">
-                  <p className="mb-2">
-                    Instagram ha detectado actividad inusual en tu cuenta y requiere verificación
-                    adicional:
-                  </p>
-                  <ol className="list-decimal pl-5 space-y-1">
-                    <li>Abre la aplicación de Instagram en tu dispositivo</li>
-                    <li>
-                      Revisa tus notificaciones o correo electrónico para el mensaje de seguridad
-                    </li>
-                    <li>Sigue las instrucciones para verificar tu identidad</li>
-                    <li>
-                      Una vez confirmada, regresa aquí e intenta conectarte de nuevo
-                    </li>
-                  </ol>
-                </div>
-                <button
-                  onClick={() => setShowRecoveryInfo(false)}
-                  className="w-full py-2 bg-[#8998F1] text-white rounded-md font-medium hover:bg-[#7988E0] transition text-sm md:text-base"
-                >
-                  Volver al inicio de sesión
-                </button>
-              </>
-            ) : (
-              <>
-                <h2 className="text-base md:text-lg font-semibold text-black mb-4">
-                  Conectar cuenta de Instagram
-                </h2>
-                {errorMessage && (
-                  <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
-                    {errorMessage}
-                  </div>
-                )}
-                {localErrorMessage && !errorMessage && (
-                  <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
-                    {localErrorMessage}
-                  </div>
-                )}
-                {hasLoginError && !errorMessage && !localErrorMessage && (
-                  <div className="text-red-500 text-xs md:text-sm mb-4 p-2 md:p-3 bg-red-50 rounded">
-                    Error al conectar. Verifica tus credenciales.
-                  </div>
-                )}
-
-                <input
-                  type="email"
-                  placeholder="Correo de Instagram"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-2 md:p-3 border border-[#A6A6A6] rounded-md mb-3 text-[#393346] placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-[#5468FF] text-sm md:text-base"
-                />
-
-                <input
-                  type="password"
-                  placeholder="Contraseña"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-2 md:p-3 border border-[#A6A6A6] rounded-md mb-3 text-[#393346] placeholder-gray-400 bg-white focus:outline-none focus:ring-1 focus:ring-[#5468FF] text-sm md:text-base"
-                />
-
-                <div className="flex items-start gap-2 mb-4">
-                  <input
-                    type="checkbox"
-                    id="prospectar"
-                    className="mt-1 cursor-pointer"
-                    checked={acceptedTerms}
-                    onChange={(e) => setAcceptedTerms(e.target.checked)}
-                  />
-                  <label
-                    htmlFor="prospectar"
-                    className="text-xs md:text-sm text-black cursor-pointer"
-                  >
-                    Aceptar términos y condiciones y políticas de privacidad en el inicio de sesión
-                    de instagram. Los términos y condiciones y políticas de privacidad se vean en la
-                    misma pagina.
-                  </label>
-                </div>
-                {!acceptedTerms && (
-                  <div className="text-red-500 text-xs mb-3">
-                    Debes aceptar los términos y condiciones para continuar.
-                  </div>
-                )}
-
-                <button
-                  onClick={handleConnectInstagram}
-                  disabled={isSubmitting || !acceptedTerms || !email || !password}
-                  className={`w-full py-2 ${
-                    isSubmitting || !acceptedTerms || !email || !password
-                      ? "bg-gray-400 cursor-not-allowed"
-                      : "bg-[#8998F1] hover:bg-[#7988E0] cursor-pointer"
-                  } text-white rounded-md font-medium transition flex justify-center items-center text-sm md:text-base`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <svg
-                        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      Conectando...
-                    </>
-                  ) : (
-                    "Siguiente →"
-                  )}
-                </button>
-              </>
-            )}
-
-            {instagramToken && !needs2FA && !showRecoveryInfo && (
-              <div className="mt-4 p-2 md:p-3 bg-gray-100 border rounded">
-                <p className="text-xs md:text-sm text-gray-600">Token de Instagram:</p>
-                <p className="text-xs font-mono break-all">
-                  {instagramToken.substring(0, 40)}...
-                </p>
-              </div>
-            )}
-
-            <div className="text-right mt-2">
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-500 text-xs md:text-sm bg-[#CCCCCC] hover:bg-[#7988E0] transition px-3 md:px-4 py-1 md:py-2 rounded"
-                disabled={isSubmitting}
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3500}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3500}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        >
+          <Alert onClose={handleCloseSnackbar} severity={snackbarSeverity}>
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
+      </div>
     </div>
   );
 };

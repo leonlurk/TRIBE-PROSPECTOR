@@ -1,0 +1,15 @@
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\bin\Debug\net8.0\sso-implementacion.exe
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\bin\Debug\net8.0\sso-implementacion.deps.json
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\bin\Debug\net8.0\sso-implementacion.runtimeconfig.json
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\bin\Debug\net8.0\sso-implementacion.dll
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\bin\Debug\net8.0\sso-implementacion.pdb
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\sso-implementacion.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\sso-implementacion.AssemblyInfoInputs.cache
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\sso-implementacion.AssemblyInfo.cs
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\sso-implementacion.csproj.CoreCompileInputs.cache
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\sso-implementacion.sourcelink.json
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\sso-implementacion.dll
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\refint\sso-implementacion.dll
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\sso-implementacion.pdb
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\sso-implementacion.genruntimeconfig.cache
+C:\Users\pleon\LURK\CRM\mi-crm\sso-implementacion\obj\Debug\net8.0\ref\sso-implementacion.dll
